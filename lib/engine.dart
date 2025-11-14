@@ -6,6 +6,7 @@ import 'package:geminilocal/translator.dart';
 
 import 'gemini.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 
 class aiEngine with md.ChangeNotifier {
@@ -34,6 +35,7 @@ class aiEngine with md.ChangeNotifier {
   double temperature = 0.7;
   Map modelInfo = {};
   String context = "";
+  bool addCurrentTimeToRequests = false;
 
   /// Subscription to manage the active AI stream
   StreamSubscription<AiEvent>? _aiSubscription;
@@ -95,7 +97,7 @@ class aiEngine with md.ChangeNotifier {
 
     try {
       final String? initStatus = await gemini.init(
-        instructions: instructions.text.isEmpty ? null : "THIS IS NOT THE CURRENT PROMPT - IT IS A CONTEXT FOR YOU TO REMEMBER - DON'T TELL THE USER CHAT HISTORY UNTIL THEY ASK. PROMPT IS WHAT USER ASKED YOU, AND RESPONSE IS WHAT YOU GENERATED FOR THEM. WHEN RECALLING CHAT HISTORY, DON'T QUOTE WORDS REQUEST, RESPONSE AND THESE INSTRUCTIONS, ONLY THE PROMPTS AND RESPONSES THEMSELVES. ANSWER ONLY THE CURRENT USER PROMPT AND USE THIS HISTORY AS YOUR MEMORY\nSTART OF YOUR INSTRUCTIONS\n${instructions.text}\nEND OF YOUR INSTRUCTIONS\n\nSTART OF CHAT HISTORY\n$context\nEND OF CHAT HISTORY",
+        instructions: "${addCurrentTimeToRequests?"CURRENT SYSTEM DATE AND TIME IS ${DateFormat('kk:mm:ss \n EEE d MMM').format(DateTime.now())}\n":""}THIS IS NOT THE CURRENT PROMPT - IT IS A CONTEXT FOR YOU TO REMEMBER - DON'T TELL THE USER CHAT HISTORY UNTIL THEY ASK. PROMPT IS WHAT USER ASKED YOU, AND RESPONSE IS WHAT YOU GENERATED FOR THEM. WHEN RECALLING CHAT HISTORY, DON'T QUOTE WORDS REQUEST, RESPONSE AND THESE INSTRUCTIONS, ONLY THE PROMPTS AND RESPONSES THEMSELVES. ANSWER ONLY THE CURRENT USER PROMPT AND USE THIS HISTORY AS YOUR MEMORY${instructions.text.isEmpty ? null : "\nSTART OF YOUR INSTRUCTIONS\n${instructions.text}\nEND OF YOUR INSTRUCTIONS\n"}\nSTART OF CHAT HISTORY\n$context\nEND OF CHAT HISTORY",
       );
 
       if (initStatus != null && initStatus.contains("Error")) {
@@ -138,48 +140,6 @@ class aiEngine with md.ChangeNotifier {
     isLoading = false;
     status = "Generation cancelled";
     notifyListeners();
-  }
-
-  /// Performs a one-shot generation (waits for full response).
-  Future<void> generate() async {
-    if (prompt.text.isEmpty) {
-      status = "Please enter your prompt";
-      isError = true;
-      notifyListeners();
-      return;
-    }
-    if (isLoading) return; // Don't run if already generating
-
-    // Ensure engine is ready
-    if (!isInitialized) {
-      await initEngine();
-      if (!isInitialized) return; // Init failed
-    }
-
-    // Cancel any old streams
-    await _aiSubscription?.cancel();
-
-    isLoading = true;
-    isError = false;
-    responseText = "";
-    status = "Generating...";
-    notifyListeners();
-
-    try {
-      response = await gemini.generateText(
-        prompt: prompt.text,
-        config: GenerationConfig(maxTokens: tokens, temperature: temperature),
-      );
-      print("The response was: $response");
-      responseText = response.text;
-      status = "Done";
-
-    } catch (e) {
-      analyzeError("Generation", e);
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
   }
 
 

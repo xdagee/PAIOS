@@ -138,6 +138,21 @@ class settingsPageState extends State<settingsPage> {
                                 context: context
                             ),
                             cards.cardGroup([
+                              cardContents.turn(
+                                  title: engine.dict.value("add_time"),
+                                  subtitle: engine.dict.value("add_time_desc"),
+                                  action: (){
+                                    setState(() {
+                                      engine.addCurrentTimeToRequests = !engine.addCurrentTimeToRequests;
+                                    });
+                                  },
+                                  switcher: (value){
+                                    setState(() {
+                                      engine.addCurrentTimeToRequests = !engine.addCurrentTimeToRequests;
+                                    });
+                                  },
+                                  value: engine.addCurrentTimeToRequests
+                              ),
                               cardContents.addretract(
                                   title: engine.dict.value("temperature"),
                                   subtitle: engine.temperature.toStringAsFixed(1),
