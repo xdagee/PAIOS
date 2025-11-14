@@ -32,5 +32,7 @@
   "settings_resources": "Additional resources",
   "share": "Share",
   "clear_context": "Clear context",
-  "waiting_for_AI": "Waiting for Gemini to start generating. If you see this message for longer than expected, this could mean either some error occurred with ML Kit or you've hit the quota (in which case just wait a minute and try again)."
+  "waiting_for_AI": "Waiting for Gemini to start generating. If you see this message for longer than expected, this could mean either some error occurred with ML Kit or you've hit the quota (in which case just wait a minute and try again).",
+  "context_desc": "~%c tokens",
+  "context_title": "Context size"
 }

@@ -149,11 +149,6 @@ class chatPageState extends State<chatPage> {
                           ),
                           SizedBox(height: 10,),
                           Padding(
-                            padding: EdgeInsetsGeometry.symmetric(horizontal: 20),
-                            child: Text("Context: ${engine.context.split(" ").length}"),
-                          ),
-                          SizedBox(height: 10,),
-                          Padding(
                             padding: const EdgeInsets.symmetric(
                                 vertical: 10,
                                 horizontal: 20

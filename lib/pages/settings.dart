@@ -82,6 +82,10 @@ class settingsPageState extends State<settingsPage> {
                                       ? ""
                                       : engine.dict.value("model_available").replaceAll("%s", engine.modelInfo["version"])
                               ),
+                              cardContents.static(
+                                  title: engine.dict.value("context_title"),
+                                  subtitle: engine.dict.value("context_desc").replaceAll("%c", (engine.context.split(" ").length-1).toString())
+                              ),
                             ]),
                             divider.settings(
                                 title: engine.dict.value("settings_app"),
