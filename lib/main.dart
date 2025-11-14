@@ -112,10 +112,10 @@ class MyAppState extends State<MyApp> {
                 ),
               );
             }
-            if(engine.firstLaunch){
-              return introPage();
+            if(!engine.firstLaunch){
+              return chatPage();
             }
-            return chatPage();
+            return introPage();
           });
         }),
       );

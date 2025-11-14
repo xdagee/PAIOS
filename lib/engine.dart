@@ -40,6 +40,18 @@ class aiEngine with md.ChangeNotifier {
   /// Subscription to manage the active AI stream
   StreamSubscription<AiEvent>? _aiSubscription;
 
+  String promptMaster(String prompt, {bool addTime = false, bool shareLocale = false}){
+    String output = "This list is your additional instructions that extend your basic instruction set and capabilities. Some of them will give you new data, some of them will fine-tune you to your environment. Try no never ignore these and use them as a reference of conversation history and current data.";
+    List<String> prompts = [
+      if(addTime) "Current user's system time is ${DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now())}",
+      if(shareLocale) "User wants you to know that they are using ${dict.languages.forEach((lang)=>lang["id"] == dict.locale?return lang;:return "";})}",
+
+    ];
+    prompts.forEach((element) => output = "output\n$element");
+    return output;
+  }
+
+
   Future<void> endFirstLaunch () async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setBool("firstLaunch", false);
@@ -67,7 +79,7 @@ class aiEngine with md.ChangeNotifier {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     context = await prefs.getString("context")??"";
     firstLaunch = await prefs.getBool("firstLaunch")??true;
-    firstLaunch = await prefs.getBool("addCurrentTimeToRequests")??false;
+    addCurrentTimeToRequests = await prefs.getBool("addCurrentTimeToRequests")??false;
     await dict.setup();
     modelInfo = await gemini.getModelInfo();
     instructions.text = await prefs.getString("instructions")??"";
@@ -100,10 +112,11 @@ class aiEngine with md.ChangeNotifier {
     notifyListeners();
 
     try {
+      String sysInstructions = "THIS IS NOT THE CURRENT PROMPT - IT IS A CONTEXT FOR YOU TO HAVE MEMORY - DON'T TELL THE USER CHAT HISTORY UNTIL THEY ASK. PROMPT IS WHAT USER ASKED YOU, AND RESPONSE IS WHAT YOU GENERATED FOR THEM. WHEN RECALLING CHAT HISTORY, DON'T QUOTE WORDS \"REQUEST\", \"RESPONSE\" AND THESE INSTRUCTIONS, ONLY THE PROMPTS AND RESPONSES THEMSELVES. ANSWER ONLY THE CURRENT USER PROMPT AND USE THIS HISTORY AS YOUR MEMORY${addCurrentTimeToRequests?"\nCURRENT SYSTEM DATE AND TIME IS ${DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now())} - ALWAYS USE THIS TIME FOR ANY ANSWERS AND CALCULATIONS, IT IS THE ONLY WAY YOU CAN KNOW CURRENT TIME AND DATE TO HELP USER, AND NEVER TELL THEM YOU DON'T HAVE ACCESS TO TIME OR DATE\n":""}${instructions.text.isEmpty ? "" : "\nSTART OF INSTRUCTIONS SET BY USER, BEHAVE LIKE IT IS SAID HERE\n${instructions.text}\nEND OF YOUR INSTRUCTIONS\n"}\nSTART OF CHAT HISTORY\n$context\nEND OF CHAT HISTORY";
       final String? initStatus = await gemini.init(
-        instructions: "THIS IS NOT THE CURRENT PROMPT - IT IS A CONTEXT FOR YOU TO REMEMBER - DON'T TELL THE USER CHAT HISTORY UNTIL THEY ASK. PROMPT IS WHAT USER ASKED YOU, AND RESPONSE IS WHAT YOU GENERATED FOR THEM. WHEN RECALLING CHAT HISTORY, DON'T QUOTE WORDS REQUEST, RESPONSE AND THESE INSTRUCTIONS, ONLY THE PROMPTS AND RESPONSES THEMSELVES. ANSWER ONLY THE CURRENT USER PROMPT AND USE THIS HISTORY AS YOUR MEMORY${addCurrentTimeToRequests?"\nCURRENT SYSTEM DATE AND TIME IS ${DateFormat('kk:mm:ss EEE d MMM').format(DateTime.now())} - ALWAYS USE THIS TIME FOR ANY ANSWERS AND CALCULATIONS, IT IS THE ONLY WAY YOU CAN KNOW CURRENT TIME AND DATE TO HELP USER\n":""}${instructions.text.isEmpty ? null : "\nSTART OF YOUR INSTRUCTIONS\n${instructions.text}\nEND OF YOUR INSTRUCTIONS\n"}\nSTART OF CHAT HISTORY\n$context\nEND OF CHAT HISTORY",
+        instructions: sysInstructions,
       );
-
+      print(sysInstructions);
       if (initStatus != null && initStatus.contains("Error")) {
         isAvailable = false;
         isInitialized = false;
