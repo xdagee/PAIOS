@@ -158,7 +158,7 @@ class settingsPageState extends State<settingsPage> {
                                   title: engine.dict.value("open_aicore_settings"),
                                   subtitle: engine.dict.value("in_play_store"),
                                   action: () async {
-                                    engine.checkAICore();
+                                    engine.gemini.openAICorePlayStore();
                                   }
                               ),
                             ]),

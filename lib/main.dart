@@ -30,7 +30,7 @@ class MyAppState extends State<MyApp> {
     super.initState();
     WidgetsFlutterBinding.ensureInitialized();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      Provider.of<aiEngine>(context, listen: false).checkAvailability();
+      Provider.of<aiEngine>(context, listen: false).start();
     });
   }
   Widget build(BuildContext context) {

@@ -16,10 +16,7 @@ class aiEngine with md.ChangeNotifier {
   final prompt = md.TextEditingController();
   final instructions = md.TextEditingController();
 
-  Dictionary dict = Dictionary(
-    path: "assets/translations",
-    url: "https://raw.githubusercontent.com/Puzzaks/geminilocal/main"
-  );
+  late Dictionary dict;
   late AiResponse response;
   String responseText = "";
   bool isLoading = false;
@@ -116,7 +113,11 @@ class aiEngine with md.ChangeNotifier {
     );
   }
 
-  Future<void> checkAvailability() async {
+  Future<void> start() async {
+    dict = Dictionary(
+        path: "assets/translations",
+        url: "https://raw.githubusercontent.com/Puzzaks/geminilocal/main"
+    );
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     if(prefs.containsKey("context")){
       context = jsonDecode(await prefs.getString("context")??"[]");
@@ -160,37 +161,33 @@ class aiEngine with md.ChangeNotifier {
     await prefs.setString("context", jsonEncode(context));
     notifyListeners();
   }
+
   Future<void> initEngine() async {
     if (isInitializing) return;
-
     isInitializing = true;
     isError = false;
-    status = "Initializing Engine...";
     notifyListeners();
-
     try {
-      String sysInstructions = await promptMaster(
+      await promptMaster(
           instructions.text,
           context,
           addTime: addCurrentTimeToRequests,
           shareLocale: shareLocale
-      );
-      final String? initStatus = await gemini.init(
-        instructions: sysInstructions,
-      );
-      if (initStatus != null && initStatus.contains("Error")) {
-        isAvailable = false;
-        isInitialized = false;
-        status = "Engine Init Error";
-        analyzeError("Initialization", initStatus);
-      } else {
-        isAvailable = true;
-        isInitialized = true;
-        status = "Engine Initialized: $initStatus";
-      }
+      ).then((instruction) async {
+        await gemini.init(instructions: instruction).then((initStatus){
+          if (initStatus == null) {
+            analyzeError("Initialization", "Did not get response from AICore communication attempt");
+          }else{
+            if (initStatus.contains("Error")) {
+              analyzeError("Initialization", initStatus);
+            }else{
+              isAvailable = true;
+              isInitialized = true;
+            }
+          }
+        });
+      });
     } catch (e) {
-      isAvailable = false;
-      isInitialized = false;
       analyzeError("Initialization", e);
     } finally {
       isInitializing = false;
@@ -198,17 +195,14 @@ class aiEngine with md.ChangeNotifier {
     }
   }
 
-  void checkAICore() {
-    gemini.openAICorePlayStore();
-  }
 
   /// Sets the error state
   void analyzeError(String action, dynamic e) {
+    isAvailable = false;
     isError = true;
-    status = "Error during $action";
-    responseText = "$action: ${e.toString()}";
-    isLoading = false;
+    isInitialized = false;
     isInitializing = false;
+    status = "Error during $action: ${e.toString()}";
     notifyListeners();
   }
 
