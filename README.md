@@ -76,7 +76,8 @@ If you find a bug, have a feature idea, or have a fix for my code, feel free to 
 This is an independent, third-party app and is not officially affiliated with, endorsed by, or sponsored by Google. "Gemini" is a trademark of Google, LLC.
 
 ### Thanks
-Huge thanks to @kekko7072 for inspiring this whole project with [this plugin](https://github.com/kekko7072/flutter_local_ai)!
+Huge thanks to `kekko7072` for inspiring this whole project with [this plugin](https://github.com/kekko7072/flutter_local_ai)!
 
 And to Armed forces of Ukraine for keeping me safe. [Stand with Ukraine](https://war.ukraine.ua/support-ukraine/)!
+
 
