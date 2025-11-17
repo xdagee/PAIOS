@@ -22,6 +22,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onCompletion
@@ -33,10 +35,10 @@ import kotlinx.coroutines.withContext
 import android.content.Intent
 import android.net.Uri
 
-/** FlutterLocalAiPlugin */
 class FlutterLocalAiPlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamHandler {
     private lateinit var methodChannel: MethodChannel
     private lateinit var eventChannel: EventChannel
+    private lateinit var downloadChannel : EventChannel
     private var generativeModel: GenerativeModel? = null
     private var instructions: String? = null
     private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -48,9 +50,63 @@ class FlutterLocalAiPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stre
         methodChannel = MethodChannel(flutterPluginBinding.binaryMessenger, "flutter_local_ai")
         methodChannel.setMethodCallHandler(this)
 
+        downloadChannel = EventChannel(flutterPluginBinding.binaryMessenger, "download_channel")
+
         eventChannel = EventChannel(flutterPluginBinding.binaryMessenger, "flutter_local_ai_events")
         eventChannel.setStreamHandler(this)
+
+        downloadChannel.setStreamHandler(
+            object : EventChannel.StreamHandler {
+                private var downloadScope: CoroutineScope? = null
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    if (events == null) return
+
+                    downloadScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+                    downloadScope?.launch {
+                        initAiCoreFlow()
+                            .catch { e -> events.error("FlowError", e.message, null) }
+                            .collect { statusString ->
+                                events.success(statusString)
+                            }
+                    }
+                }
+                override fun onCancel(arguments: Any?) {
+                    downloadScope?.cancel()
+                    downloadScope = null
+                }
+            }
+        )
     }
+
+    private fun initAiCoreFlow(): Flow<String> = flow {
+        try {
+            if (generativeModel == null) {
+                generativeModel = com.google.mlkit.genai.prompt.Generation.getClient()
+            }
+            val status = generativeModel!!.checkStatus()
+            when (status) {
+                FeatureStatus.AVAILABLE -> emit("Available=Available=0")
+                FeatureStatus.UNAVAILABLE -> emit("Error=AICore=Unavailable")
+                FeatureStatus.DOWNLOADING,
+                FeatureStatus.DOWNLOADABLE -> {
+                    emit("Download=In Progress=0")
+
+                    generativeModel!!.download().collect { downloadStatus ->
+                        when (downloadStatus) {
+                            is DownloadStatus.DownloadStarted ->   emit("Download=In Progress=0")
+                            is DownloadStatus.DownloadProgress ->  emit("Download=In Progress=${downloadStatus.totalBytesDownloaded}")
+                            is DownloadStatus.DownloadCompleted -> emit("Available=Download=0")
+                            is DownloadStatus.DownloadFailed ->    emit("Error=Download=${downloadStatus.e.message}")
+                            else ->                                emit("Error=Download=Unknown")
+                        }
+                    }
+                }
+                else -> emit("Error=Unknown=$status")
+            }
+        } catch (e: Exception) {
+            emit("Error=Unknown=${e.message}")
+        }
+    }.flowOn(Dispatchers.IO)
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
@@ -67,6 +123,7 @@ class FlutterLocalAiPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stre
             "init" -> {
                 instructions = call.argument("instructions")
                 coroutineScope.launch {
+                    Log.d("FlutterLocalAi", "Received request to init the Nano")
                     try {
                         val available = initAiCore()
                         result.success(available)
@@ -234,7 +291,7 @@ class FlutterLocalAiPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stre
     } // <-- *** THIS WAS THE MISSING BRACE ***
 
     override fun onCancel(arguments: Any?) {
-        // Not strictly needed to implement, but good practice
+
     }
 
     private suspend fun initAiCore(): String = withContext(Dispatchers.IO) {
@@ -242,45 +299,28 @@ class FlutterLocalAiPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stre
             if (generativeModel == null) {
                 generativeModel = com.google.mlkit.genai.prompt.Generation.getClient()
             }
-
             val status = generativeModel!!.checkStatus()
             when (status) {
-                FeatureStatus.AVAILABLE -> {
-                    "Available"
-                }
-                FeatureStatus.UNAVAILABLE -> {
-                    "Error: Model unavailable on this device."
-                }
-                FeatureStatus.DOWNLOADING -> {
-                    "Model is already downloading. Please wait."
-                }
+                FeatureStatus.AVAILABLE -> "Available=Available=0"
+                FeatureStatus.UNAVAILABLE -> "Error=AICore=Unavailable"
+                FeatureStatus.DOWNLOADING -> "Download=In Progress=0"
                 FeatureStatus.DOWNLOADABLE -> {
-                    Log.d("FlutterLocalAi", "Model is DOWNLOADABLE. Starting download...")
-                    var downloadMessage = "Download started..."
-
-                    generativeModel!!.download().collect { status ->
-                        when (status) {
-                            is DownloadStatus.DownloadStarted ->
-                                Log.d("FlutterLocalAi", "starting download for Gemini Nano")
-                            is DownloadStatus.DownloadProgress ->
-                                Log.d("FlutterLocalAi", "Nano ${status.totalBytesDownloaded} bytes downloaded")
-                            DownloadStatus.DownloadCompleted -> {
-                                Log.d("FlutterLocalAi", "Gemini Nano download complete")
-                                downloadMessage = "Model download complete"
-                            }
-                            is DownloadStatus.DownloadFailed -> {
-                                Log.e("FlutterLocalAi", "Nano download failed ${status.e.message}")
-                                throw Exception("Model download failed: ${status.e.message}")
-                            }
+                    var downloadMessage = "Download=In Progress=0"
+                    generativeModel!!.download().collect {
+                        status -> when (status) {
+                            is DownloadStatus.DownloadStarted ->   downloadMessage = "Download=In Progress=0"
+                            is DownloadStatus.DownloadProgress ->  downloadMessage = "Download=In Progress=${status.totalBytesDownloaded}"
+                            is DownloadStatus.DownloadCompleted -> downloadMessage = "Available=Download=0"
+                            is DownloadStatus.DownloadFailed ->    downloadMessage = "Error=Download=${status.e.message}"
+                            else ->                                downloadMessage = "Error=Download=Unknown"
                         }
                     }
                     downloadMessage
                 }
-                else -> "Unknown model status: $status"
+                else -> "Error=Unknown=$status"
             }
         } catch (e: Exception) {
-            android.util.Log.e("FlutterLocalAi", "initAiCore error: ${e.javaClass.simpleName} - ${e.message}", e)
-            "Error: ${e.message}"
+            "Error=Unknown=${e.message}"
         }
     }
 
@@ -408,6 +448,7 @@ class FlutterLocalAiPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stre
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel.setMethodCallHandler(null)
         eventChannel.setStreamHandler(null)
+        downloadChannel.setStreamHandler(null)
         dispose()
     }
 }

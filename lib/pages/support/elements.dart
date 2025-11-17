@@ -309,6 +309,56 @@ class cardContents {
       ),
     );
   }
+  static Widget progress({
+    required String title,
+    required String subtitle,
+    required String subsubtitle,
+    required double progress
+  }) {
+    return Padding(
+      padding: EdgeInsets.symmetric(
+          horizontal: 20, vertical: 10
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(height: subtitle == ""?10:0,),
+          Text(
+            title,
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            overflow: TextOverflow.ellipsis,
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              subtitle == ""?Container(height: 10,):
+              Text(
+                subtitle,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subsubtitle == ""?Container(height: 10,):
+              Text(
+                subsubtitle,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+          Padding(
+            padding: EdgeInsetsGeometry.symmetric(
+              vertical: 5
+            ),
+            child: LinearProgressIndicator(
+              value: progress == 0
+                  ? null
+                  : progress,
+              borderRadius: BorderRadius.circular(20),
+            ),
+          )
+        ],
+      ),
+    );
+  }
   static Widget doubleTap({
     required String title,
     required String subtitle,

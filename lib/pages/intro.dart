@@ -47,6 +47,72 @@ class introPageState extends State<introPage> {
     TextStyle blacker = const TextStyle(
         color: Colors.black
     );
+    int latestSpeed = 0;
+    String convertSize(int size, bool isSpeed) {
+      if (size < 1024) {
+        return '$size B${isSpeed?"/s":""}';
+      } else if (size < 10240) {
+        double sizeKb = size / 1024;
+        return '${sizeKb.toStringAsFixed(2)} KB${isSpeed?"/s":""}';
+      } else if (size < 1048576) {
+        double sizeKb = size / 1024;
+        return '${sizeKb.toStringAsFixed(1)} KB${isSpeed?"/s":""}';
+      } else if (size < 10485760) {
+        double sizeMb = size / 1048576;
+        return '${sizeMb.toStringAsFixed(2)} MB${isSpeed?"/s":""}';
+      } else if (size < 104857600) {
+        double sizeMb = size / 1048576;
+        return '${sizeMb.toStringAsFixed(1)} MB${isSpeed?"/s":""}';
+      } else if (size < 1073741824) {
+        double sizeGb = size / 1073741824;
+        return '${sizeGb.toStringAsFixed(2)} GB${isSpeed?"/s":""}';
+      } else if (size < 10737418240) {
+        double sizeGb = size / 1073741824;
+        return '${sizeGb.toStringAsFixed(1)} GB${isSpeed?"/s":""}';
+      } else {
+        double sizeGb = size / 1073741824;
+        return '${sizeGb.toInt()} GB${isSpeed?"/s":""}';
+      }
+    }
+    String calcSpeed(List log){
+      if(log.length > 1){
+        int lastSize = int.parse(log[log.length-1]["value"]);
+        int lastTime = ((log[log.length-1]["time"]+1) / 1000).toInt();
+        int prevSize = int.parse(log[log.length-2]["value"]);
+        int prevTime = (log[log.length-2]["time"] / 1000).toInt();
+        if(lastTime == prevTime || lastSize == prevSize){
+          return convertSize(0, true);
+        }
+        if(lastTime == prevTime || lastSize == prevSize){
+          return convertSize(0, true);
+        }
+        int speed = ((lastSize - prevSize) / (lastTime - prevTime)).toInt();
+        if(log.length > 2){
+          int anotherSize = int.parse(log[log.length-3]["value"]);
+          int anotherTime = (log[log.length-3]["time"] / 1000).toInt();
+          if(prevSize == anotherSize || prevTime == anotherTime){
+            return convertSize(0, true);
+          }
+          int lastSpeed = ((prevSize - anotherSize) / (prevTime - anotherTime)).toInt();
+          int avgSpeed = ((speed + lastSpeed)/2).toInt();
+          if(avgSpeed == 0){
+            return convertSize(latestSpeed, true);
+          }else{
+            latestSpeed = avgSpeed;
+            return convertSize(avgSpeed, true);
+          }
+        }else{
+          if(speed == 0){
+            return convertSize(latestSpeed, true);
+          }else{
+            latestSpeed = speed;
+            return convertSize(speed, true);
+          }
+        }
+      }else{
+        return convertSize(0, true);
+      }
+    }
     return DynamicColorBuilder(builder: (lightColorScheme, darkColorScheme) {
       return MaterialApp(
         theme: _themeData(lightColorScheme ?? _defaultLightColorScheme).copyWith(
@@ -96,52 +162,59 @@ class introPageState extends State<introPage> {
                     ),
                     SliverToBoxAdapter(
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          cardContents.static(
-                              title: "Gemini Nano ${
-                                  engine.modelInfo["version"] == null
-                                      ? engine.dict.value("unavailable")
-                                      : engine.modelInfo["version"] == "Unknown"
-                                      ? engine.dict.value("unavailable")
-                                      : engine.dict.value("available")
-                              }",
-                              subtitle: engine.modelInfo["version"] == null
-                                  ? ""
-                                  : engine.modelInfo["version"] == "Unknown"
-                                  ? ""
-                                  : engine.dict.value("model_available").replaceAll("%s", engine.modelInfo["version"])
-                          ),
-                          Padding(
-                            padding: EdgeInsetsGeometry.only(
-                                bottom: 20,
-                                left: 20,
-                                right: 20,
-                                top: 10
-                            ),
-                            child: Container(
-                              width: scaffoldWidth - 40,
-                              child: engine.modelInfo["version"] == null
-                                  ? Text(engine.dict.value("welcome_unavailable"))
-                                  : engine.modelInfo["version"] == "Unknown"
-                                  ? Text(engine.dict.value("welcome_unavailable"))
-                                  : Text(engine.dict.value("welcome_available")),
-                            ),
+                          divider.settings(
+                              title: engine.dict.value("settings_status"),
+                              context: context
                           ),
                           cards.cardGroup([
-                            cardContents.static(
-                                title: "Gemini Nano ${
-                                    engine.modelInfo["version"] == null
-                                        ? engine.dict.value("unavailable")
-                                        : engine.modelInfo["version"] == "Unknown"
-                                          ? engine.dict.value("unavailable")
-                                          : engine.dict.value("available")
-                                }",
-                                subtitle: engine.modelInfo["version"] == null
-                                    ? ""
-                                    : engine.modelInfo["version"] == "Unknown"
-                                      ? ""
-                                      : engine.dict.value("model_available").replaceAll("%s", engine.modelInfo["version"])
-                            ),
+                            if(engine.modelDownloadLog.isNotEmpty)
+                              if(engine.modelDownloadLog[engine.modelDownloadLog.length-1]["status"] == "Download")
+                                if(int.parse(engine.modelDownloadLog[engine.modelDownloadLog.length-1]["value"]) > 0)
+                                  cardContents.progress(
+                                      title: engine.dict.value("downloading_model"),
+                                      subtitle: "${convertSize(int.parse(engine.modelDownloadLog[engine.modelDownloadLog.length-1]["value"]), false)}/${convertSize(engine.usualModelSize, false)} (${((int.parse(engine.modelDownloadLog[engine.modelDownloadLog.length-1]["value"]) / engine.usualModelSize)*100).toStringAsFixed(2)}%)",
+                                      subsubtitle: calcSpeed(engine.modelDownloadLog),
+                                      progress: (int.parse(engine.modelDownloadLog[engine.modelDownloadLog.length-1]["value"])/engine.usualModelSize)
+                                  ),
+                            if(engine.modelDownloadLog.isNotEmpty)
+                              if(engine.modelDownloadLog[engine.modelDownloadLog.length-1]["status"] == "Download")
+                                if(int.parse(engine.modelDownloadLog[engine.modelDownloadLog.length-1]["value"]) == 0)
+                                  cardContents.progress(
+                                      title: engine.dict.value("downloading_model"),
+                                      subtitle: "${convertSize(0, false)}/${convertSize(engine.usualModelSize, false)} (0%)",
+                                      subsubtitle: convertSize(0,true),
+                                      progress: 0
+                                  ),
+                            if(engine.modelDownloadLog.isNotEmpty)
+                              if(engine.modelDownloadLog[engine.modelDownloadLog.length-1]["status"] == "Available")
+                                cardContents.static(
+                                    title: "Gemini Nano ${engine.dict.value("available")}",
+                                    subtitle: engine.modelInfo["version"] == null
+                                        ? ""
+                                        : engine.dict.value("model_available").replaceAll("%s", engine.modelInfo["version"])
+                                ),
+                            if(engine.modelDownloadLog.isNotEmpty)
+                              if(engine.modelDownloadLog[engine.modelDownloadLog.length-1]["status"] == "Error")
+                                cardContents.doubleTap(
+                                    title: "Gemini Nano ${engine.dict.value("unavailable")}",
+                                    subtitle: engine.dict.value("whoops"),
+                                    action: () async {
+                                      engine.gemini.openAICorePlayStore();
+                                    },
+                                  secondAction: (){
+                                      engine.modelDownloadLog.clear();
+                                      engine.checkEngine();
+                                  },
+                                  icon: Icons.refresh_rounded
+                                )
+                          ]),
+                          divider.settings(
+                              title: engine.dict.value("language_settings"),
+                              context: context
+                          ),
+                          cards.cardGroup([
                             cardContents.longTap(
                                 title: engine.dict.value("select_language"),
                                 subtitle: engine.dict.value("select_language_auto_long"),
@@ -164,7 +237,7 @@ class introPageState extends State<introPage> {
                                           content: SingleChildScrollView(
                                               child: cards.cardGroup(
                                                   engine.dict.languages.map((language) {
-                                                    return cardContents.tap(
+                                                    return cardContents.halfTap(
                                                         title: language["origin"],
                                                         subtitle: language["name"] == language["origin"] ? "" : language["name"],
                                                         action: () async {
@@ -186,13 +259,12 @@ class introPageState extends State<introPage> {
                                   });
                                 }
                             ),
-                            cardContents.tap(
-                                title: engine.dict.value("open_aicore_settings"),
-                                subtitle: engine.dict.value("in_play_store"),
-                                action: () async {
-                                  engine.gemini.openAICorePlayStore();
-                                }
-                            ),
+                          ]),
+                          divider.settings(
+                              title: engine.dict.value("settings_resources"),
+                              context: context
+                          ),
+                          cards.cardGroup([
                             cardContents.tap(
                                 title: engine.dict.value("gh_repo"),
                                 subtitle: engine.dict.value("tap_to_open"),
@@ -212,16 +284,34 @@ class introPageState extends State<introPage> {
                                   );
                                 }
                             ),
-                            if(!(engine.modelInfo["version"] == null))
-                              if(!(engine.modelInfo["version"] == "Unknown"))
-                                cardContents.tap(
-                                    title: engine.dict.value("continue"),
-                                    subtitle: "",
-                                    action: () {
-                                      engine.endFirstLaunch();
-                                    }
-                                ),
                           ]),
+                          SizedBox(height: 20,),
+                          if(engine.modelDownloadLog.isNotEmpty)
+                            if(engine.modelDownloadLog[engine.modelDownloadLog.length-1]["status"] == "Download")
+                              text.info(
+                                  title: engine.dict.value("welcome_download").replaceAll("%size%", convertSize(engine.usualModelSize, false)),
+                                  subtitle: "",
+                                  action: () {},
+                                  context: context
+                              ),
+
+                          if(engine.modelDownloadLog.isNotEmpty)
+                            if(!(engine.modelDownloadLog[engine.modelDownloadLog.length-1]["status"] == "Download"))
+                              text.info(
+                                  title: engine.modelInfo["version"] == null
+                                      ? engine.dict.value("welcome_unavailable")
+                                      : engine.modelInfo["version"] == "Unknown"
+                                      ? engine.dict.value("welcome_unavailable")
+                                      : engine.dict.value("welcome_available"),
+                                  subtitle: engine.dict.value("gh_repo"),
+                                  action: () async {
+                                    await launchUrl(
+                                        Uri.parse('https://github.com/Puzzaks/geminilocal'),
+                                        mode: LaunchMode.externalApplication
+                                    );
+                                  },
+                                  context: context
+                              ),
                           SizedBox(
                             height: 30,
                           )

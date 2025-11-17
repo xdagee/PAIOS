@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart' as md;
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:geminilocal/interface/flutter_local_ai.dart';
 import 'package:geminilocal/parts/prompt.dart';
 import 'package:geminilocal/parts/translator.dart';
@@ -16,7 +17,7 @@ class aiEngine with md.ChangeNotifier {
 
   Dictionary dict = Dictionary(
       path: "assets/translations",
-      url: "https://raw.githubusercontent.com/Puzzaks/geminilocal/main"
+      url: "https://raw.githubusercontent.com/Puzzaks/geminilocal/mains"
   );
   Prompt promptEngine = Prompt(ghUrl: "https://github.com/Puzzaks/geminilocal");
   late AiResponse response;
@@ -34,6 +35,7 @@ class aiEngine with md.ChangeNotifier {
   // Config
   int tokens = 256; // Increased default
   double temperature = 0.7;
+  int usualModelSize = 3854827928;
   Map modelInfo = {};
   List context = [];
   int contextSize = 0;
@@ -43,6 +45,7 @@ class aiEngine with md.ChangeNotifier {
   bool appStarted = false;
   String testPrompt = "";
   Map resources = {};
+  List modelDownloadLog = [];
 
   /// Subscription to manage the active AI stream
   StreamSubscription<AiEvent>? _aiSubscription;
@@ -77,17 +80,16 @@ class aiEngine with md.ChangeNotifier {
 
   Future<void> start() async {
     await dict.setup();
+    await checkEngine();
     await promptEngine.initialize();
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     if(prefs.containsKey("context")){
       context = jsonDecode(await prefs.getString("context")??"[]");
       contextSize = await prefs.getInt("contextSize")??0;
     }
-    firstLaunch = await prefs.getBool("firstLaunch")??true;
     addCurrentTimeToRequests = await prefs.getBool("addCurrentTimeToRequests")??false;
     shareLocale = await prefs.getBool("shareLocale")??false;
     errorRetry = await prefs.getBool("errorRetry")??true;
-    modelInfo = await gemini.getModelInfo();
     instructions.text = await prefs.getString("instructions")??"";
     temperature = await prefs.getDouble("temperature")??0.7;
     tokens = await prefs.getInt("tokens")??256;
@@ -97,8 +99,70 @@ class aiEngine with md.ChangeNotifier {
     scrollChatlog(Duration(seconds: 3));
     await Future.delayed(Duration(seconds: 3));
     scrollChatlog(Duration(milliseconds: 250));
-    }
+  }
 
+  void addDownloadLog(String log){
+    print("Adding from ${log.split("=")[0]} (${log.split("=")[1]}, ${log.split("=")[2]})");
+    modelDownloadLog.add(
+        {
+          "status": log.split("=")[0],
+          "info": log.split("=")[1],
+          "value": log.split("=")[2],
+          "time": DateTime.now().millisecondsSinceEpoch
+        }
+    );
+    notifyListeners();
+
+  }
+
+
+  Future<void> checkEngine() async {
+    gemini.statusStream = gemini.downloadChannel.receiveBroadcastStream().map((dynamic event) => event.toString());
+    gemini.statusStream.listen((String downloadStatus) async {
+      switch (downloadStatus.split("=")[0]){
+        case "Available":
+          modelInfo = await gemini.getModelInfo();
+          if(modelInfo["version"]==null){
+            checkEngine();
+          }else{
+            endFirstLaunch();
+          }
+
+          addDownloadLog(downloadStatus);
+          break;
+        case "Download":
+          if(modelDownloadLog.isEmpty){
+            addDownloadLog(downloadStatus);
+          }else{
+            if(int.parse(downloadStatus.split("=")[2]) > int.parse(modelDownloadLog[modelDownloadLog.length-1]["value"])){
+              addDownloadLog(downloadStatus);
+            }
+          }
+          break;
+        case "Error":
+          addDownloadLog(downloadStatus);
+          if(downloadStatus.split("=")[2].contains("1-DOWNLOAD_ERROR")){
+            checkEngine();
+          }else{
+            Fluttertoast.showToast(
+                msg: "Gemini Nano ${dict.value("unavailable")}",
+                toastLength: Toast.LENGTH_SHORT,
+                fontSize: 16.0
+            );
+          }
+          break;
+        default:
+          addDownloadLog(downloadStatus);
+      }
+    },
+      onError: (e) async {
+        analyzeError("Received new status: ", e);
+      },
+      onDone: () {
+        notifyListeners();
+      },
+    );
+  }
   addToContext() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     contextSize = contextSize + responseText.split(' ').length + lastPrompt.split(' ').length;

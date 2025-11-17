@@ -4,14 +4,11 @@ import '../../parts/gemini.dart';
 import 'models/ai_response.dart';
 import 'models/generation_config.dart';
 
-/// Main class for interacting with local AI
 class FlutterLocalAi {
-  /// MethodChannel for one-shot commands (init, dispose).
   static const MethodChannel _methodChannel = MethodChannel('flutter_local_ai');
-
-  /// EventChannel for ALL AI data requests (one-shot and streaming).
-  static const EventChannel _eventChannel =
-  EventChannel('flutter_local_ai_events'); // <-- Renamed!
+  static const EventChannel _eventChannel = EventChannel('flutter_local_ai_events');
+  EventChannel downloadChannel = EventChannel('download_channel');
+  late Stream<String> statusStream;
 
   Future<Map<String, String>> getModelInfo() async {
     try {
@@ -27,7 +24,6 @@ class FlutterLocalAi {
       return {'status': 'Error', 'version': e.toString()};
     }
   }
-  /// Initializes the AI module.
   Future<String?> init({String? instructions}) async {
     final String? status = await _methodChannel.invokeMethod(
       'init',
@@ -35,6 +31,7 @@ class FlutterLocalAi {
     );
     return status;
   }
+
 
   /// The new, unified private function that gets the event stream.
   Stream<AiEvent> _getAiEvents({
