@@ -270,15 +270,38 @@ class AIEngine with md.ChangeNotifier {
           analyzeError("Initialization", initStatus);
         }else{
           await gemini.generateText(
-            prompt: "Summarize the text in one sentence.\nRespond in under 6 words.\nDon't add any prefix like \"The text\".Good example: if the text is \"What's the weather?\", respond with \"Weather inquiry\".\nSimply answer the question \"What this is it about\" in the shortest correct way possible.\nDon't provide any answer to the contents of the text, just summarize it.\n\n<TEXT STARTS HERE>\n$input\n<TEXT ENDS HERE>",
+            prompt: "Task: Create a short, 3-5 word title for the user's message.\n"
+                "Rules:\n"
+                "1. DO NOT use full sentences.\n"
+                "2. DO NOT use phrases like \"The text is about\" or \"Summary of\".\n"
+                "3. Be extremely concise.\n"
+                "4. The title MUST be in the same language as the input.\n"
+                "Examples:\n"
+                "Input: \"Hello, how are you?\"\n"
+                "Title: Greeting\n\n"
+                "Input: \"Привіт, як справи?\"\n"
+                "Title: Привітання\n\n"
+                "Input: \"Write a python script to sort a list\"\n"
+                "Title: Python sorting script\n\n"
+                "Input: \"Why is the sky blue?\"\n"
+                "Title: Sky color explanation\n\n"
+                "Input: \"I need help with my printer\"\n"
+                "Title: Printer troubleshooting\n\n"
+                "Input: \"sdlkfjsdf\"\n"
+                "Title: Random characters\n\n"
+                "Input: \"$input\"\n"
+                "Title:",
             config: GenerationConfig(maxTokens: 20  , temperature: 0.7),
           ).then((title){
-            newTitle = title;
+            newTitle = title.split('\n').first;
+            newTitle = newTitle.replaceAll(RegExp(r'[*#_`]'), '').trim();
+            if (newTitle.length > 40) {
+              newTitle = newTitle.substring(0, 40) + "...";
+            }
           });
         }
       }
     });
-    print("Returning the $newTitle");
     return newTitle.trim().replaceAll(".", "");
   }
 
@@ -298,12 +321,14 @@ class AIEngine with md.ChangeNotifier {
         chats[chatID]!["history"] = jsonEncode(conversation).toString();
         chats[chatID]!["updated"] =  DateTime.now().millisecondsSinceEpoch.toString();
       }else{
+        isLoading = true;
         await Future.delayed(Duration(milliseconds: 500)); /// We have to wait some time because summarizing immediately will always result in overflowing the quota for some reason
         String newTitle = "Still loading";
         await generateTitle(lastPrompt.trim()).then((result){
           newTitle = result;
         });
-        print("And new title is... $newTitle");
+
+        isLoading = false;
         chats[chatID] = {
           "name": newTitle,
           "history": jsonEncode(conversation).toString(),
@@ -450,11 +475,32 @@ class AIEngine with md.ChangeNotifier {
             break;
 
           case AiEventStatus.done:
-            isLoading = false;
-            status = "Done";
-            addToContext();
-            prompt.clear();
-            scrollChatlog(Duration(milliseconds: 250));
+            if(responseText == ""){
+              if(errorRetry){
+                if(event.response?.text == null){
+                  isLoading = false;
+                  Fluttertoast.showToast(
+                      msg: "Unable to generate response.",
+                      toastLength: Toast.LENGTH_SHORT,
+                      fontSize: 16.0
+                  );
+                }else{
+                  await Future.delayed(Duration(milliseconds: 500));
+                  generateStream();
+                }
+              }else{
+                isLoading = false;
+                isError = true;
+                status = "Error";
+                responseText = event.error ?? "Unknown stream error";
+              }
+            }else{
+              isLoading = false;
+              status = "Done";
+              addToContext();
+              prompt.clear();
+              scrollChatlog(Duration(milliseconds: 250));
+            }
             break;
 
           case AiEventStatus.error:

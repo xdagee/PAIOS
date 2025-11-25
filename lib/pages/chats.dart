@@ -2,13 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:geminilocal/pages/chat.dart';
-import 'package:geminilocal/pages/settings/model.dart';
-import 'package:geminilocal/pages/settings/resources.dart';
+import 'package:geminilocal/pages/settings.dart';
+import 'package:geminilocal/pages/settings/chat.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../engine.dart';
 import 'support/elements.dart';
-import 'package:intl/intl.dart';
 
 
 class ChatsPage extends StatefulWidget {
@@ -19,7 +17,18 @@ class ChatsPage extends StatefulWidget {
 
 class ChatsPageState extends State<ChatsPage> {
 
-  String formatDurationToShortString(DateTime currentTime, DateTime pastTimestamp) {
+  String timeAgo(time) {
+    DateTime currentTime = DateTime.now();
+    late DateTime pastTimestamp;
+    if(time is int){
+      pastTimestamp = DateTime.fromMillisecondsSinceEpoch(time);
+    }else if(time is String){
+      pastTimestamp = DateTime.fromMillisecondsSinceEpoch(int.parse(time));
+    }else if(time is DateTime){
+      pastTimestamp = time;
+    }else{
+      return "Not a DateTime!";
+    }
     final Duration difference = currentTime.difference(pastTimestamp);
 
     final int seconds = difference.inSeconds.abs();
@@ -61,9 +70,13 @@ class ChatsPageState extends State<ChatsPage> {
               Cards cards = Cards(context: context);
               return Consumer<AIEngine>(builder: (context, engine, child) {
                 return Scaffold(
-                  floatingActionButton: FloatingActionButton(
-                    child: Icon(Icons.add_rounded),
-                    tooltip: engine.dict.value("start_chat"),
+                  floatingActionButton: FloatingActionButton.extended(
+                    icon: Icon(Icons.add_rounded),
+                    materialTapTargetSize: MaterialTapTargetSize.padded,
+                    isExtended: true,
+                    label: Text(engine.dict.value("new_chat")),
+                    enableFeedback: true,
+                    tooltip: engine.dict.value("new_chat"),
                     onPressed: (){
                       engine.currentChat = "0";
                       engine.context.clear();
@@ -78,55 +91,126 @@ class ChatsPageState extends State<ChatsPage> {
                     slivers: <Widget>[
                       SliverAppBar.large(
                         surfaceTintColor: Colors.transparent,
-                        leading: Padding(
-                          padding: EdgeInsetsGeometry.only(left: 5),
-                          child: IconButton(
-                              onPressed: (){
-                                Navigator.pop(context);
-                              },
-                              icon: Icon(Icons.arrow_back_rounded)
-                          ),
+                        title: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(engine.dict.value("title")),
+                            Padding(
+                              padding: EdgeInsetsGeometry.symmetric(
+                                  vertical: 50,
+                                  horizontal: 10
+                              ),
+                              child: Chip(
+                                label: Text(
+                                  engine.modelInfo["version"]??"Loading...",
+                                  style: TextStyle(
+                                  ),
+                                ),
+                                labelPadding: EdgeInsets.symmetric(
+                                    horizontal: 5
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                backgroundColor: Theme.of(context).colorScheme.onPrimaryFixed,
+                                surfaceTintColor: Colors.transparent,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadiusGeometry.circular(20),
+                                    side: BorderSide(
+                                        color: Colors.transparent
+                                    )
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        title: Text(engine.dict.value("chats")),
+                        actions: [
+                          IconButton(
+                            onPressed: (){
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => SettingsPage()),
+                              );
+                            },
+                            tooltip: engine.dict.value("settings"),
+                            icon: Icon(Icons.tune_rounded),
+                          )
+                        ],
                         pinned: true,
                       ),
                       SliverToBoxAdapter(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            if(engine.chats.isNotEmpty)
                             divider.settings(
                                 title: engine.dict.value("your_chats"),
                                 context: context
                             ),
                             cards.cardGroup(
-                                engine.chats.keys.toList().map((key){
+                              <Widget>[
+                                ...engine.chats.keys.toList().map((key){
                                   Map chat = engine.chats[key]??{
                                     "name": "Nonameyet",
                                     "history": {},
                                     "created": DateTime.now().millisecondsSinceEpoch.toString(),
                                     "updated": DateTime.now().millisecondsSinceEpoch.toString()
                                   };
-                                  return CardContents.tap(
+                                  return CardContents.longTap(
                                       title: chat["name"]??"Loading...",
-                                      subtitle: formatDurationToShortString(DateTime.now(), DateTime.fromMillisecondsSinceEpoch(int.parse(chat["updated"]))) == "just now"
-                                        ? engine.dict.value("just_now")
-                                        : engine.dict.value(formatDurationToShortString(DateTime.now(), DateTime.fromMillisecondsSinceEpoch(int.parse(chat["updated"]))).split(" ")[1]).replaceAll("%time%", formatDurationToShortString(DateTime.now(), DateTime.fromMillisecondsSinceEpoch(int.parse(chat["updated"]))).split(" ")[0]),
+                                      subtitle: timeAgo(chat["updated"]) == "just now"
+                                        ? "${engine.dict.value("updated")} ${engine.dict.value("just_now")}, ${engine.dict.value("messages")}: ${jsonDecode(chat["history"]).length}"
+                                        : "${engine.dict.value("updated")} ${timeAgo(chat["updated"]).split(" ")[0]} ${engine.dict.value(timeAgo(chat["updated"]).split(" ")[1])} ${engine.dict.value("ago")}, ${engine.dict.value("messages")}: ${jsonDecode(chat["history"]).length}",
                                       action: () async {
-                                        print("I have chats: ${engine.chats.keys}");
                                         engine.isLoading = false;
                                         engine.context.clear();
                                         engine.contextSize = 0;
                                         engine.context = jsonDecode(chat["history"]);
                                         engine.currentChat = key;
-                                        print("Loading chat $key: $chat");
-                                        print("Context: ${engine.context}");
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(builder: (context) => ChatPage()),
                                         );
-                                      }
+                                      },
+                                    longAction: (){
+                                      engine.isLoading = false;
+                                      engine.context.clear();
+                                      engine.contextSize = 0;
+                                      engine.context = jsonDecode(chat["history"]);
+                                      engine.currentChat = key;
+                                    showModalBottomSheet<void>(
+                                    context: context,
+                                    barrierLabel: chat["name"],
+                                    isScrollControlled: true,
+                                    enableDrag: true,
+                                    useSafeArea: true,
+                                    showDragHandle: true,
+                                    builder: (BuildContext topContext) {
+                                      return ChatSettingsPage();
+                                    }
+                                    );
+                                    }
                                   );
-                                }).toList().cast<Widget>()
+                                }).toList().cast<Widget>(),
+                                if(engine.isLoading)
+                                  CardContents.static(
+                                      title: engine.dict.value("loading"),
+                                      subtitle: "${engine.dict.value("created")} ${engine.dict.value("just_now")}"
+                                  ),
+                              ]
+                            ),
+                            text.info(
+                                title: engine.dict.value(engine.chats.isEmpty?"no_chats":"chats_desc"),
+                                subtitle: engine.chats.isEmpty?engine.dict.value("new_chat"):"",
+                                action: engine.chats.isNotEmpty?(){}:(){
+                                  engine.currentChat = "0";
+                                  engine.context.clear();
+                                  engine.contextSize = 0;
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => ChatPage()),
+                                  );},
+                                context: context
                             )
                           ],
                         ),

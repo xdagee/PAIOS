@@ -43,6 +43,7 @@ class AiEvent {
         status = AiEventStatus.done;
         break;
       case 'Error':
+        print("Known AiEventStatus: $statusString");
         status = AiEventStatus.error;
         break;
       default:

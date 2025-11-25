@@ -89,5 +89,18 @@
   "updated": "Updated",
   "created": "Created",
   "ago": "ago",
-  "just_now": "just now"
+  "just_now": "just now",
+  "chats": "Chats",
+  "your_chats": "Your chats",
+  "new_chat": "New Chat",
+  "chat_settings": "Chat Settings",
+  "chat_settings_desc": "These settings apply only to the current chat. To edit global parameters, open settings.",
+  "chat_settings_subtitle": "Go to Settings",
+  "chat_name": "Chat name",
+  "change_name": "Tap to change",
+  "loading": "Loading...",
+  "messages": "mssages",
+  "pinned_chats": "Pinned",
+  "no_chats": "You haven't yet started a chat. Press a button below to begin.",
+  "chats_desc": "Long tap for options. Tap the \"New Chat\" button to start new chat."
 }

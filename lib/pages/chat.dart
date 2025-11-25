@@ -47,52 +47,20 @@ class ChatPageState extends State<ChatPage> {
                         icon: Icon(Icons.arrow_back_rounded)
                     ),
                   ),
-                  title: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(engine.dict.value("title")),
-                      Padding(
-                        padding: EdgeInsetsGeometry.symmetric(
-                            vertical: 50,
-                            horizontal: 10
-                        ),
-                        child: Chip(
-                          label: Text(
-                            engine.modelInfo["version"]??"Loading...",
-                            style: TextStyle(
-                            ),
-                          ),
-                          labelPadding: EdgeInsets.symmetric(
-                              horizontal: 5
-                          ),
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          backgroundColor: Theme.of(context).colorScheme.onPrimaryFixed,
-                          surfaceTintColor: Colors.transparent,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadiusGeometry.circular(20),
-                              side: BorderSide(
-                                  color: Colors.transparent
-                              )
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  title: Text(engine.chats[engine.currentChat]?["name"]??engine.dict.value("new_chat")),
                   actions: [
-                    if(!(engine.responseText==""))IconButton(
-                      icon: Icon(Icons.share_rounded),
-                      tooltip: engine.dict.value("share"),
-                      onPressed: engine.isLoading?null:() {
-                        SharePlus.instance.share(
-                            ShareParams(
-                                title: engine.dict.value("share"),
-                                text: engine.responseText
-                            )
-                        );
-                      },
-                    ),
+                    // if(!(engine.responseText==""))IconButton(
+                    //   icon: Icon(Icons.share_rounded),
+                    //   tooltip: engine.dict.value("share"),
+                    //   onPressed: engine.isLoading?null:() {
+                    //     SharePlus.instance.share(
+                    //         ShareParams(
+                    //             title: engine.dict.value("share"),
+                    //             text: engine.responseText
+                    //         )
+                    //     );
+                    //   },
+                    // ),
                     if(engine.context.isNotEmpty)IconButton(
                       icon: Icon(Icons.delete_outline_rounded),
                       tooltip: engine.dict.value("clear_context"),
@@ -110,18 +78,9 @@ class ChatPageState extends State<ChatPage> {
                             toastLength: Toast.LENGTH_SHORT,
                             fontSize: 16.0
                         );
+                        Navigator.pop(context);
                       },
                     ),
-                    IconButton(
-                      onPressed: (){
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => SettingsPage()),
-                        );
-                      },
-                      tooltip: engine.dict.value("settings"),
-                      icon: Icon(Icons.tune_rounded),
-                    )
                   ],
                   actionsPadding: EdgeInsets.only(right:10),
                 ),
