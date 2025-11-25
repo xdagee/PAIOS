@@ -270,7 +270,7 @@ class AIEngine with md.ChangeNotifier {
           analyzeError("Initialization", initStatus);
         }else{
           await gemini.generateText(
-            prompt: "Summarize the text in one sentence.\nRespond in under 7 words.\nDon't add any prefix like \"The text is about\".\nSimply answer the question \"What this text is about\" in the shortest correct way possible.\nDon't provide any answer to the contents of the text, just summarize it.\n\n<TEXT STARTS HERE>\n$input\n<TEXT ENDS HERE>",
+            prompt: "Summarize the text in one sentence.\nRespond in under 7 words.\nDon't add any prefix like \"The text\".Good example: if the text is \"What's the weather?\", respond with \"Weather inquiry\".\nSimply answer the question \"What this text is about\" in the shortest correct way possible.\nDon't provide any answer to the contents of the text, just summarize it.\n\n<TEXT STARTS HERE>\n$input\n<TEXT ENDS HERE>",
             config: GenerationConfig(maxTokens: 250, temperature: 0.7),
           ).then((title){
             newTitle = title;
@@ -279,7 +279,7 @@ class AIEngine with md.ChangeNotifier {
       }
     });
     print("Returning the $newTitle");
-    return newTitle;
+    return newTitle.trim().replaceAll(".", "");
   }
 
   saveChat(List conversation, {String chatID = "0"}) async {
