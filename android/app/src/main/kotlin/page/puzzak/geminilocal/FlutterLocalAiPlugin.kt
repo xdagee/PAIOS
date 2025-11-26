@@ -1,11 +1,9 @@
 package page.puzzak.geminilocal
 
 import android.content.Context
-// NEW IMPORTS for model status and logging
 import android.util.Log
 import com.google.mlkit.genai.common.DownloadStatus
 import com.google.mlkit.genai.common.FeatureStatus
-// END NEW IMPORTS
 import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.GenerateContentResponse
 import com.google.mlkit.genai.prompt.GenerativeModel
@@ -31,7 +29,6 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-// ADD these imports for opening the Play Store
 import android.content.Intent
 import android.net.Uri
 
@@ -156,7 +153,6 @@ class FlutterLocalAiPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stre
                 generativeModel = com.google.mlkit.genai.prompt.Generation.getClient()
             }
 
-            // 1. Get Status
             val status = generativeModel!!.checkStatus()
             val statusString = when (status) {
                 FeatureStatus.AVAILABLE -> "Available"
@@ -165,13 +161,9 @@ class FlutterLocalAiPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stre
                 FeatureStatus.DOWNLOADABLE -> "Downloadable"
                 else -> "Unknown"
             }
-
-            // 2. Get Base Model Name (Version)
-            // This will only work if the model is available.
             var modelVersion = "Unknown"
             if (status == FeatureStatus.AVAILABLE) {
                 try {
-                    // This is the call you found in the documentation
                     modelVersion = generativeModel!!.getBaseModelName() ?: "Unknown"
                 } catch (e: Exception) {
                     // Could fail if model is not ready, etc.
@@ -278,17 +270,16 @@ class FlutterLocalAiPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stre
                             events.endOfStream()
                         }
                     }
-                    .launchIn(this) // Start collecting the flow in the coroutine scope
+                    .launchIn(this)
 
             } catch (e: Exception) {
-                // Catch setup errors before the flow starts
                 withContext(Dispatchers.Main) {
                     events.success(mapOf("status" to "Error", "response" to null, "error" to e.message))
                     events.endOfStream()
                 }
             }
         }
-    } // <-- *** THIS WAS THE MISSING BRACE ***
+    }
 
     override fun onCancel(arguments: Any?) {
 
@@ -444,7 +435,6 @@ class FlutterLocalAiPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Stre
         return match?.groups?.get(1)?.value?.toInt() ?: 0
     }
 
-    // THIS WAS THE MISSING FUNCTION
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel.setMethodCallHandler(null)
         eventChannel.setStreamHandler(null)
