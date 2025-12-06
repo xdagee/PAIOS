@@ -104,7 +104,6 @@ class AIEngine with md.ChangeNotifier {
   }
 
   Future<void> startAnalytics () async {
-    await log("application", "info", "Enabling analytics");
     SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setBool("analytics", true);
     await Firebase.initializeApp(
@@ -113,6 +112,7 @@ class AIEngine with md.ChangeNotifier {
     await FirebaseAnalytics.instance.setConsent();
     await Firebase.app().setAutomaticDataCollectionEnabled(true);
     await Firebase.app().setAutomaticResourceManagementEnabled(true);
+    await log("application", "info", "Enabling analytics");
   }
 
   Future<void> stopAnalytics () async {
