@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geminilocal/pages/settings/logs.dart';
 import 'package:geminilocal/pages/settings/model.dart';
 import 'package:geminilocal/pages/settings/resources.dart';
 import 'package:provider/provider.dart';
@@ -167,6 +168,25 @@ class SettingsPageState extends State<SettingsPage> {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(builder: (context) => SettingsResources()),
+                                    );
+                                  }
+                              )
+                            ]),
+                            Category.settings(
+                                title: engine.dict.value(engine.analytics?"logs_with_analytics":"logs_no_analytics"),
+                                context: context
+                            ),
+                            cards.cardGroup([
+                              CardContents.tapIcon(
+                                  title: engine.dict.value(engine.analytics?"logs_with_analytics":"logs_no_analytics"),
+                                  subtitle: "",
+                                  icon: Icons.checklist_rounded,
+                                  colorBG: Theme.of(context).colorScheme.primaryFixedDim,
+                                  color: Theme.of(context).colorScheme.onPrimaryFixed,
+                                  action: (){
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => LogsPage()),
                                     );
                                   }
                               )

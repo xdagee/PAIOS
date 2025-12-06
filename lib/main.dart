@@ -29,6 +29,7 @@ class MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     Provider.of<AIEngine>(context, listen: false).start();
+
   }
   @override
   Widget build(BuildContext context) {

@@ -25,3 +25,11 @@ doc/api/
 
 .flutter-plugins
 .flutter-plugins-dependencies
+lib/firebase_options.dart
+*.exe
+android/app/google-services.json
+.idea/caches/deviceStreaming.xml
+.idea/caches/deviceStreaming.xml
+.idea/deviceManager.xml
+firebase.json
+.idea/deviceManager.xml

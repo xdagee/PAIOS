@@ -2,12 +2,15 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' as md;
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:geminilocal/pages/support/elements.dart';
 import 'package:geminilocal/parts/prompt.dart';
 import 'package:geminilocal/parts/translator.dart';
+import 'firebase_options.dart';
 import 'parts/gemini.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -61,6 +64,9 @@ class AIEngine with md.ChangeNotifier {
   Map chats = {};
   String currentChat = "0";
 
+  bool analytics = true;
+  List<Map> logs = [];
+
   /// Subscription to manage the active AI stream
   StreamSubscription<AiEvent>? _aiSubscription;
 
@@ -97,11 +103,81 @@ class AIEngine with md.ChangeNotifier {
     );
   }
 
+  Future<void> startAnalytics () async {
+    await log("application", "info", "Enabling analytics");
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setBool("analytics", true);
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await Firebase.app().setAutomaticDataCollectionEnabled(true);
+    await Firebase.app().setAutomaticResourceManagementEnabled(true);
+  }
+
+  Future<void> stopAnalytics () async {
+    await log("application", "info", "Disabling analytics");
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setBool("analytics", false);
+    await Firebase.app().setAutomaticDataCollectionEnabled(false);
+    await Firebase.app().setAutomaticResourceManagementEnabled(false);
+  }
+
+  Future<void> log(String name, String type, String message) async {
+    if(logs.isEmpty){
+      logs.add({
+        "thread": name,
+        "time": DateTime
+            .now()
+            .millisecondsSinceEpoch,
+        "type": type,
+        "message": message
+      });
+    }else{
+      if(logs.last["thread"] == name && logs.last["type"] == type && logs.last["message"] == message){
+        logs.last["time"] = DateTime.now().millisecondsSinceEpoch;
+        if (kDebugMode) {
+          print("Still alive, did the last thing said above");
+        }
+      }else {
+        logs.add({
+          "thread": name,
+          "time": DateTime
+              .now()
+              .millisecondsSinceEpoch,
+          "type": type,
+          "message": message
+        });
+        if (kDebugMode) {
+          print("${type}_$name: $message");
+        }
+      }
+    }
+    notifyListeners();
+    if(analytics){
+      await FirebaseAnalytics.instance.logEvent(
+        name: name,
+        parameters: <String, Object>{
+          'type': type,
+          'message': message
+        },
+      );
+    }
+  }
+
   Future<void> start() async {
+    log("init", "info", "Starting the app engine");
+    log("init", "info", "Starting the translations engine");
     await dict.setup();
+    log("init", "info", "Checking Gemini Nano status");
     await checkEngine();
+    log("init", "info", "Initializing the Prompt engine");
     await promptEngine.initialize();
     final SharedPreferences prefs = await SharedPreferences.getInstance();
+    if(prefs.containsKey("analytics")){
+      analytics = prefs.getBool("analytics")??true;
+      startAnalytics();
+    }
+    log("init", "info", "Firebase analytics: ${analytics?"Enabled":"Disabled"}");
     if(prefs.containsKey("context")){
       context = jsonDecode(prefs.getString("context")??"[]");
       contextSize = prefs.getInt("contextSize")??0;
@@ -109,14 +185,20 @@ class AIEngine with md.ChangeNotifier {
     if(prefs.containsKey("chats")){
       chats = jsonDecode(prefs.getString("chats")??"[]");
     }
+    log("init", "info", chats.isEmpty?"No chats found":"Found chats: ${chats.length}");
     addCurrentTimeToRequests = prefs.getBool("addCurrentTimeToRequests")??false;
+    log("init", "info", "Add DateTime to prompt: ${addCurrentTimeToRequests?"Enabled":"Disabled"}");
     shareLocale = prefs.getBool("shareLocale")??false;
+    log("init", "info", "Add app locale to prompt: ${shareLocale?"Enabled":"Disabled"}");
     errorRetry = prefs.getBool("errorRetry")??true;
+    log("init", "info", "Retry on error: ${errorRetry?"Enabled":"Disabled"}");
     ignoreInstructions = prefs.getBool("ignoreInstructions")??false;
+    log("init", "info", "Ignore instructions: ${ignoreInstructions?"Enabled":"Disabled"}");
     instructions.text = prefs.getString("instructions")??"";
     temperature = prefs.getDouble("temperature")??0.7;
     tokens = prefs.getInt("tokens")??256;
     appStarted = true;
+    log("init", "info", "App initiation complete");
     notifyListeners();
     await Future.delayed(Duration(milliseconds: 250));
     scrollChatlog(Duration(seconds: 3));
@@ -170,6 +252,7 @@ class AIEngine with md.ChangeNotifier {
       if(modelDownloadLog.isNotEmpty){
         if(lastUpdate == modelDownloadLog[modelDownloadLog.length - 1]){ /// Nothing changed in the last 15 seconds, assume we have restarted and are not getting updates; We must restart the checkEngine. So...
           checkEngine();
+          await log("model", "warning", "Stopped getting model download events");
         }else{
           lastUpdate = modelDownloadLog[modelDownloadLog.length - 1];
         }
@@ -189,16 +272,19 @@ class AIEngine with md.ChangeNotifier {
         case "Available":
           modelInfo = await gemini.getModelInfo();
           if(modelInfo["version"]==null){
+            await log("model", "warning", "Model version was not reported, trying again");
             await Future.delayed(Duration(seconds: 2));
             checkEngine();
           }else{
             if(modelInfo["status"]=="Available"){
               addDownloadLog("Available=Available=0");
+              await log("model", "info", "Model is ready");
               endFirstLaunch();
             }else{
               if(downloadStatus.split("=")[1] == "Download"){
                 if(!(modelDownloadLog[modelDownloadLog.length-1]["info"] == "waiting_network")){
                   addDownloadLog("Download=downloading_model=0");
+                  await log("model", "info", "Downloading model");
                 }
               }else{
                 addDownloadLog(downloadStatus);
@@ -211,6 +297,7 @@ class AIEngine with md.ChangeNotifier {
             addDownloadLog(downloadStatus);
           }else{
             if(!modelDownloadLog[modelDownloadLog.length-1]["value"].contains("error")){
+              await log("model", "error", modelDownloadLog[modelDownloadLog.length-1]["value"]);
               if(int.parse(downloadStatus.split("=")[2]) > int.parse(modelDownloadLog[modelDownloadLog.length-1]["value"])){
                 addDownloadLog(downloadStatus);
               }
@@ -219,6 +306,7 @@ class AIEngine with md.ChangeNotifier {
           break;
         case "Error":
           addDownloadLog(downloadStatus);
+          await log("model", "error", downloadStatus.split("=")[2]);
           if(downloadStatus.split("=")[2].contains("1-DOWNLOAD_ERROR")){
             checkEngine();
           }else{
@@ -234,6 +322,7 @@ class AIEngine with md.ChangeNotifier {
       }
     },
       onError: (e) async {
+        await log("model", "error", e);
         analyzeError("Received new status: ", e);
       },
       onDone: () {
@@ -266,15 +355,17 @@ class AIEngine with md.ChangeNotifier {
     notifyListeners();
   }
 
-  deleteChat(String chatID){
+  deleteChat(String chatID) async {
     if(chats.containsKey(chatID) && !(chatID == "0")){
       chats.remove(chatID);
       notifyListeners();
+      await log("application", "info", "Deleting chat");
     }
   }
 
   Future generateTitle (String input) async {
     ignoreContext = true;
+    await log("model", "info", "Generating new chat title");
     String newTitle = "Getting description";
     await gemini.init().then((initStatus) async {
       ignoreContext = false;
@@ -344,6 +435,7 @@ class AIEngine with md.ChangeNotifier {
         chats[chatID]!["history"] = jsonEncode(conversation).toString();
         chats[chatID]!["updated"] =  DateTime.now().millisecondsSinceEpoch.toString();
         chats[chatID]!["tokens"] =  contextSize.toString();
+        await log("application", "info", "Saving chat. Length: ${contextSize.toString()}");
       }else{
         isLoading = true;
         await Future.delayed(Duration(milliseconds: 500)); /// We have to wait some time because summarizing immediately will always result in overflowing the quota for some reason
@@ -365,6 +457,7 @@ class AIEngine with md.ChangeNotifier {
           "created": DateTime.now().millisecondsSinceEpoch.toString(),
           "updated": DateTime.now().millisecondsSinceEpoch.toString()
         };
+        await log("application", "info", "Saving new chat");
       }
     }
     await prefs.setString("chats", jsonEncode(chats));
@@ -400,13 +493,16 @@ class AIEngine with md.ChangeNotifier {
           ignoreInstructions: ignoreInstructions,
           ignoreContext: ignoreContext
       ).then((instruction) async {
-        await gemini.init(instructions: instruction).then((initStatus){
+        await gemini.init(instructions: instruction).then((initStatus) async {
           if (initStatus == null) {
+            await log("model", "error", "Did not get response from AICore communication attempt");
             analyzeError("Initialization", "Did not get response from AICore communication attempt");
           }else{
             if (initStatus.contains("Error")) {
+              await log("model", "error", initStatus);
               analyzeError("Initialization", initStatus);
             }else{
+              await log("model", "info", "Model initialized successfully");
               isAvailable = true;
               isInitialized = true;
             }
@@ -414,6 +510,7 @@ class AIEngine with md.ChangeNotifier {
         });
       });
     } catch (e) {
+      await log("model", "error", e.toString());
       analyzeError("Initialization", e);
     } finally {
       isInitializing = false;
@@ -433,12 +530,13 @@ class AIEngine with md.ChangeNotifier {
   }
 
   /// Cancels any ongoing generation
-  void cancelGeneration() {
+  Future<void> cancelGeneration() async {
     _aiSubscription?.cancel();
     isLoading = false;
     status = "Generation cancelled";
     notifyListeners();
     scrollChatlog(Duration(milliseconds: 250));
+    await log("model", "error", "Cancelling generation");
   }
 
 
@@ -481,6 +579,7 @@ class AIEngine with md.ChangeNotifier {
             isLoading = true;
             responseText = "";
             status = dict.value("waiting_for_AI");
+            await log("model", "info", "Waiting for model to initialize");
             notifyListeners();
             break;
 
@@ -489,10 +588,22 @@ class AIEngine with md.ChangeNotifier {
             String? finishReason = event.response?.finishReason;
             if(!(event.response?.finishReason=="null")) {
               switch(finishReason??"null"){
-                case "0": if (kDebugMode) {print("Generation stopped (MAX_TOKENS): The maximum number of output tokens as specified in the request was reached.");}break;
-                case "1": if (kDebugMode) {print("Generation stopped (OTHER): Generic stop reason.");}break;
-                case "-100": if (kDebugMode) {print("Generation stopped (STOP): Natural stop point of the model.");}break;
-                default: if (kDebugMode) {print("Generation stopped (Code ${event.response?.finishReason}): Reason for stop was not specified");}break;
+                case "0":
+                  if (kDebugMode) {print("Generation stopped (MAX_TOKENS): The maximum number of output tokens as specified in the request was reached.");}
+                  await log("model", "info", "Generation stopped (MAX_TOKENS)");
+                  break;
+                case "1":
+                  if (kDebugMode) {print("Generation stopped (OTHER): Generic stop reason.");}
+                  await log("model", "info", "Generation stopped (OTHER)");
+                  break;
+                case "-100":
+                  if (kDebugMode) {print("Generation stopped (STOP): Natural stop point of the model.");}
+                  await log("model", "info", "Generation stopped (STOP)");
+                  break;
+                default:
+                  if (kDebugMode) {print("Generation stopped (Code ${event.response?.finishReason}): Reason for stop was not specified");}
+                  await log("model", "info", "Generation stopped (Code ${event.response?.finishReason})");
+                  break;
               }
             }
             status = "Streaming response...";
@@ -531,12 +642,14 @@ class AIEngine with md.ChangeNotifier {
                 isError = true;
                 status = "Error";
                 responseText = event.error ?? "Unknown stream error";
+                await log("model", "error", responseText);
               }
             }else{
               isLoading = false;
               status = "Done";
               addToContext();
               prompt.clear();
+              await log("model", "info", dict.value("generated_hint").replaceAll("%seconds%", ((response.generationTimeMs??10)/1000).toStringAsFixed(2)).replaceAll("%tokens%", response.text.split(" ").length.toString()).replaceAll("%tokenspersec%", (response.tokenCount!.toInt()/((response.generationTimeMs??10)/1000)).toStringAsFixed(2)));
               try{
                 scrollChatlog(Duration(milliseconds: 250));
               }catch(e){
@@ -556,6 +669,7 @@ class AIEngine with md.ChangeNotifier {
               isError = true;
               status = "Error";
               responseText = event.error ?? "Unknown stream error";
+              await log("model", "error", responseText);
             }
             break;
         }
@@ -566,6 +680,7 @@ class AIEngine with md.ChangeNotifier {
           await Future.delayed(Duration(milliseconds: 500));
           generateStream();
         }else {
+          await log("model", "error", e);
           analyzeError("Streaming", e);
         }
       },

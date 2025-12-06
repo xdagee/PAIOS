@@ -499,6 +499,7 @@ class CardContents {
     required ValueChanged<bool> switcher,
     required bool value
   }) {
+    double width = (WidgetsBinding.instance.platformDispatcher.views.first.physicalSize / WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio).width;
     return InkWell(
       onTap: action,
       child: Padding(
@@ -511,17 +512,22 @@ class CardContents {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-                Text(
-                  subtitle,
-                ),
-              ],
+            Container(
+              constraints: BoxConstraints(
+                maxWidth: width - 140
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                  Text(
+                    subtitle,
+                  ),
+                ],
+              ),
             ),
             Switch(
               value: value, onChanged: switcher,
