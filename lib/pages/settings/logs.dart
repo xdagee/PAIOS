@@ -30,8 +30,15 @@ class LogsPageState extends State<LogsPage> {
             return Consumer<AIEngine>(builder: (context, engine, child) {
               return Scaffold(
                 appBar: AppBar(
-                  leading: Container(),
-                  leadingWidth: 0,
+                  leading: Padding(
+                    padding: EdgeInsetsGeometry.only(left: 5),
+                    child: IconButton(
+                        onPressed: (){
+                          Navigator.pop(context);
+                        },
+                        icon: Icon(Icons.arrow_back_rounded)
+                    ),
+                  ),
                   surfaceTintColor: Colors.transparent,
                   title: Text(engine.dict.value(engine.analytics?"logs_with_analytics":"logs_no_analytics")),
                 ),
