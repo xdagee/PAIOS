@@ -1,3 +1,8 @@
+## Update 1.1.2 `OBT`
+#### Changes
+ - Added optional analytics for debugging and crash reporting
+ - Added internal logs for the app
+
 ## Update 1.1.1 `OBT`
 #### Changes
  - Chat list now shows status of generation in the correct chat
