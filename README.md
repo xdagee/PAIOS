@@ -19,11 +19,10 @@
 
   <!-- Download Buttons -->
   <a href="https://play.google.com/store/apps/details?id=page.puzzak.paios">
-    <img src=".assets/PlayStoreButton.png" width="48%" alt="Get it on Google Play" />
+    <img src=".assets/PlayStoreButton.png" alt="Get it on Google Play" />
   </a>
-  &nbsp;
   <a href="https://github.com/Puzzaks/gemininano/releases/latest">
-    <img src=".assets/GHButton.png" width="48%" alt="Download on GitHub" />
+    <img src=".assets/GHButton.png" alt="Download on GitHub" />
   </a>
 
   
