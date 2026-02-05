@@ -46,7 +46,7 @@ I need your help to make PAIOS available to everyone!
 - **Changelog**: The `CHANGELOG.md` will be updated with update notes after the release, I will do my best to include all the changes from the maintainers with due attribution.
 
 ### Issues
-- **Bug Reports**: Please include your device model and Android version, as device support is the most critical factor for this app. Make sure that your device is in the [supported devices list](https://developers.google.com/ml-kit/genai#prompt-device) and is not rooted - this is a Google's AI Core requirement.
+- **Bug Reports**: Please include your device model and Android version, as device support is the most critical factor for this app. Make sure that your device is in the [supported devices list](https://developers.google.com/ml-kit/genai#prompt-device) and does not have an unlocked bootloader - this is a Google's AI Core requirement.
 - **Feature Requests**: I love new ideas! Please check the [Roadmap](ROADMAP.md) to see if it's already planned.
 
 Thank you for helping make local AI better!
