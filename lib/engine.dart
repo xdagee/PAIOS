@@ -14,7 +14,6 @@ import 'firebase_options.dart';
 import 'parts/gemini.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 class AIEngine with md.ChangeNotifier {
   final gemini = GeminiNano();
   final prompt = md.TextEditingController();
@@ -22,16 +21,16 @@ class AIEngine with md.ChangeNotifier {
   final chatName = md.TextEditingController();
 
   Dictionary dict = Dictionary(
-      path: "assets/translations",
-      url: "https://raw.githubusercontent.com/Puzzaks/geminilocal/main"
+    path: "assets/translations",
+    url: "https://raw.githubusercontent.com/Puzzaks/PAIOS/main",
   );
-  Prompt promptEngine = Prompt(ghUrl: "https://github.com/Puzzaks/geminilocal");
+  Prompt promptEngine = Prompt(ghUrl: "https://github.com/Puzzaks/PAIOS");
   AiResponse response = AiResponse(
     text: "Loading...",
     tokenCount: 1,
     chunk: "Loading...",
     generationTimeMs: 1,
-    finishReason: ""
+    finishReason: "",
   );
   String responseText = "";
   bool isLoading = false;
@@ -65,6 +64,7 @@ class AIEngine with md.ChangeNotifier {
   String currentChat = "0";
 
   bool analytics = true;
+  bool analyticsDone = false;
   List<Map> logs = [];
 
   /// Subscription to manage the active AI stream
@@ -73,18 +73,18 @@ class AIEngine with md.ChangeNotifier {
   late Cards cards;
 
   /// This junk is to update all pages in case we have a modal that is focused in which case setState will not update content underneath it
-  void genericRefresh (){
+  void genericRefresh() {
     notifyListeners();
   }
 
-  Future<void> endFirstLaunch () async {
+  Future<void> endFirstLaunch() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setBool("firstLaunch", false);
     firstLaunch = false;
     notifyListeners();
   }
 
-  saveSettings () async {
+  saveSettings() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setDouble("temperature", temperature);
     prefs.setInt("tokens", tokens);
@@ -95,7 +95,7 @@ class AIEngine with md.ChangeNotifier {
     prefs.setBool("ignoreInstructions", ignoreInstructions);
   }
 
-  scrollChatlog (Duration speed){
+  scrollChatlog(Duration speed) {
     scroller.animateTo(
       scroller.position.maxScrollExtent,
       duration: speed,
@@ -103,7 +103,7 @@ class AIEngine with md.ChangeNotifier {
     );
   }
 
-  Future<void> startAnalytics () async {
+  Future<void> startAnalytics() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setBool("analytics", true);
     await Firebase.initializeApp(
@@ -112,10 +112,11 @@ class AIEngine with md.ChangeNotifier {
     await FirebaseAnalytics.instance.setConsent();
     await Firebase.app().setAutomaticDataCollectionEnabled(true);
     await Firebase.app().setAutomaticResourceManagementEnabled(true);
+    analyticsDone = true;
     await log("application", "info", "Enabling analytics");
   }
 
-  Future<void> stopAnalytics () async {
+  Future<void> stopAnalytics() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setBool("analytics", false);
     await Firebase.app().setAutomaticDataCollectionEnabled(false);
@@ -124,29 +125,27 @@ class AIEngine with md.ChangeNotifier {
   }
 
   Future<void> log(String name, String type, String message) async {
-    if(logs.isEmpty){
+    if (logs.isEmpty) {
       logs.add({
         "thread": name,
-        "time": DateTime
-            .now()
-            .millisecondsSinceEpoch,
+        "time": DateTime.now().millisecondsSinceEpoch,
         "type": type,
-        "message": message
+        "message": message,
       });
-    }else{
-      if(logs.last["thread"] == name && logs.last["type"] == type && logs.last["message"] == message){
+    } else {
+      if (logs.last["thread"] == name &&
+          logs.last["type"] == type &&
+          logs.last["message"] == message) {
         logs.last["time"] = DateTime.now().millisecondsSinceEpoch;
         if (kDebugMode) {
           print("Still alive, did the last thing said above");
         }
-      }else {
+      } else {
         logs.add({
           "thread": name,
-          "time": DateTime
-              .now()
-              .millisecondsSinceEpoch,
+          "time": DateTime.now().millisecondsSinceEpoch,
           "type": type,
-          "message": message
+          "message": message,
         });
         if (kDebugMode) {
           print("${type}_$name: $message");
@@ -154,16 +153,13 @@ class AIEngine with md.ChangeNotifier {
       }
     }
     notifyListeners();
-    if(analytics){
+    if (analytics && analyticsDone) {
       try {
         await FirebaseAnalytics.instance.logEvent(
           name: name,
-          parameters: <String, Object>{
-            'type': type,
-            'message': message
-          },
+          parameters: <String, Object>{'type': type, 'message': message},
         );
-      }catch(e){
+      } catch (e) {
         if (kDebugMode) {
           print("Analytics failed. Not waiting anymore. Error: $e");
         }
@@ -173,13 +169,13 @@ class AIEngine with md.ChangeNotifier {
 
   Future<void> start() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    if(prefs.containsKey("analytics")){
-      analytics = prefs.getBool("analytics")??true;
-      if(analytics){
-        await startAnalytics();
+    if (prefs.containsKey("analytics")) {
+      analytics = prefs.getBool("analytics") ?? true;
+      if (analytics) {
+        startAnalytics();
       }
-    }else{
-      await startAnalytics();
+    } else {
+      startAnalytics();
     }
     log("init", "info", "Starting the app engine");
     log("init", "info", "Starting the translations engine");
@@ -188,26 +184,51 @@ class AIEngine with md.ChangeNotifier {
     await checkEngine();
     log("init", "info", "Initializing the Prompt engine");
     await promptEngine.initialize();
-    log("init", "info", "Firebase analytics: ${analytics?"Enabled":"Disabled"}");
-    if(prefs.containsKey("context")){
-      context = jsonDecode(prefs.getString("context")??"[]");
-      contextSize = prefs.getInt("contextSize")??0;
+    log(
+      "init",
+      "info",
+      "Firebase analytics: ${analytics ? "Enabled" : "Disabled"}",
+    );
+    if (prefs.containsKey("context")) {
+      context = jsonDecode(prefs.getString("context") ?? "[]");
+      contextSize = prefs.getInt("contextSize") ?? 0;
     }
-    if(prefs.containsKey("chats")){
-      chats = jsonDecode(prefs.getString("chats")??"[]");
+    if (prefs.containsKey("chats")) {
+      chats = jsonDecode(prefs.getString("chats") ?? "[]");
     }
-    log("init", "info", chats.isEmpty?"No chats found":"Found chats: ${chats.length}");
-    addCurrentTimeToRequests = prefs.getBool("addCurrentTimeToRequests")??false;
-    log("init", "info", "Add DateTime to prompt: ${addCurrentTimeToRequests?"Enabled":"Disabled"}");
-    shareLocale = prefs.getBool("shareLocale")??false;
-    log("init", "info", "Add app locale to prompt: ${shareLocale?"Enabled":"Disabled"}");
-    errorRetry = prefs.getBool("errorRetry")??true;
-    log("init", "info", "Retry on error: ${errorRetry?"Enabled":"Disabled"}");
-    ignoreInstructions = prefs.getBool("ignoreInstructions")??false;
-    log("init", "info", "Ignore instructions: ${ignoreInstructions?"Enabled":"Disabled"}");
-    instructions.text = prefs.getString("instructions")??"";
-    temperature = prefs.getDouble("temperature")??0.7;
-    tokens = prefs.getInt("tokens")??256;
+    log(
+      "init",
+      "info",
+      chats.isEmpty ? "No chats found" : "Found chats: ${chats.length}",
+    );
+    addCurrentTimeToRequests =
+        prefs.getBool("addCurrentTimeToRequests") ?? false;
+    log(
+      "init",
+      "info",
+      "Add DateTime to prompt: ${addCurrentTimeToRequests ? "Enabled" : "Disabled"}",
+    );
+    shareLocale = prefs.getBool("shareLocale") ?? false;
+    log(
+      "init",
+      "info",
+      "Add app locale to prompt: ${shareLocale ? "Enabled" : "Disabled"}",
+    );
+    errorRetry = prefs.getBool("errorRetry") ?? true;
+    log(
+      "init",
+      "info",
+      "Retry on error: ${errorRetry ? "Enabled" : "Disabled"}",
+    );
+    ignoreInstructions = prefs.getBool("ignoreInstructions") ?? false;
+    log(
+      "init",
+      "info",
+      "Ignore instructions: ${ignoreInstructions ? "Enabled" : "Disabled"}",
+    );
+    instructions.text = prefs.getString("instructions") ?? "";
+    temperature = prefs.getDouble("temperature") ?? 0.7;
+    tokens = prefs.getInt("tokens") ?? 256;
     appStarted = true;
     log("init", "info", "App initiation complete");
     notifyListeners();
@@ -217,33 +238,38 @@ class AIEngine with md.ChangeNotifier {
     scrollChatlog(Duration(milliseconds: 250));
   }
 
-  void addDownloadLog(String log){
-    modelDownloadLog.add(
-        {
-          "status": log.split("=")[0],
-          "info": log.split("=")[1],
-          "value": log.split("=")[2],
-          "time": DateTime.now().millisecondsSinceEpoch
-        }
-    );
+  void addDownloadLog(String log) {
+    modelDownloadLog.add({
+      "status": log.split("=")[0],
+      "info": log.split("=")[1],
+      "value": log.split("=")[2],
+      "time": DateTime.now().millisecondsSinceEpoch,
+    });
     notifyListeners();
-
   }
 
   lateNetCheck() async {
-    while(firstLaunch){
+    while (firstLaunch) {
       final connectivityResult = await (Connectivity().checkConnectivity());
       if (!connectivityResult.contains(ConnectivityResult.wifi)) {
-        if(modelDownloadLog.isNotEmpty) {
-          if (!(modelDownloadLog[modelDownloadLog.length - 1]["info"] == "waiting_network")) {
-            if(modelDownloadLog[modelDownloadLog.length - 1]["info"] == "downloading_model"){
-              addDownloadLog("Download=waiting_network=${modelDownloadLog[modelDownloadLog.length - 1]["value"]}");}
+        if (modelDownloadLog.isNotEmpty) {
+          if (!(modelDownloadLog[modelDownloadLog.length - 1]["info"] ==
+              "waiting_network")) {
+            if (modelDownloadLog[modelDownloadLog.length - 1]["info"] ==
+                "downloading_model") {
+              addDownloadLog(
+                "Download=waiting_network=${modelDownloadLog[modelDownloadLog.length - 1]["value"]}",
+              );
+            }
           }
         }
       } else {
-        if(modelDownloadLog.isNotEmpty){
-          if ((modelDownloadLog[modelDownloadLog.length - 1]["info"] == "waiting_network")) {
-            addDownloadLog("Download=downloading_model=${modelDownloadLog[modelDownloadLog.length - 1]["value"]}");
+        if (modelDownloadLog.isNotEmpty) {
+          if ((modelDownloadLog[modelDownloadLog.length - 1]["info"] ==
+              "waiting_network")) {
+            addDownloadLog(
+              "Download=downloading_model=${modelDownloadLog[modelDownloadLog.length - 1]["value"]}",
+            );
           }
         }
       }
@@ -253,18 +279,23 @@ class AIEngine with md.ChangeNotifier {
 
   lateProgressCheck() async {
     Map lastUpdate = {};
-    while(firstLaunch){
+    while (firstLaunch) {
       await Future.delayed(Duration(seconds: 15));
-      if(lastUpdate == {}){
-        if(modelDownloadLog.isNotEmpty){
+      if (lastUpdate == {}) {
+        if (modelDownloadLog.isNotEmpty) {
           lastUpdate = modelDownloadLog[modelDownloadLog.length - 1];
         }
       }
-      if(modelDownloadLog.isNotEmpty){
-        if(lastUpdate == modelDownloadLog[modelDownloadLog.length - 1]){ /// Nothing changed in the last 15 seconds, assume we have restarted and are not getting updates; We must restart the checkEngine. So...
+      if (modelDownloadLog.isNotEmpty) {
+        if (lastUpdate == modelDownloadLog[modelDownloadLog.length - 1]) {
+          /// Nothing changed in the last 15 seconds, assume we have restarted and are not getting updates; We must restart the checkEngine. So...
           checkEngine();
-          await log("model", "warning", "Stopped getting model download events");
-        }else{
+          await log(
+            "model",
+            "warning",
+            "Stopped getting model download events",
+          );
+        } else {
           lastUpdate = modelDownloadLog[modelDownloadLog.length - 1];
         }
       }
@@ -272,66 +303,82 @@ class AIEngine with md.ChangeNotifier {
   }
 
   Future<void> checkEngine() async {
-    if(modelDownloadLog.isEmpty){
+    if (modelDownloadLog.isEmpty) {
       lateNetCheck();
       lateProgressCheck();
     }
     modelDownloadLog.clear();
-    gemini.statusStream = gemini.downloadChannel.receiveBroadcastStream().map((dynamic event) => event.toString());
-    gemini.statusStream.listen((String downloadStatus) async {
-      switch (downloadStatus.split("=")[0]){
-        case "Available":
-          modelInfo = await gemini.getModelInfo();
-          if(modelInfo["version"]==null){
-            await log("model", "warning", "Model version was not reported, trying again");
-            await Future.delayed(Duration(seconds: 2));
-            checkEngine();
-          }else{
-            if(modelInfo["status"]=="Available"){
-              addDownloadLog("Available=Available=0");
-              await log("model", "info", "Model is ready");
-              endFirstLaunch();
-            }else{
-              if(downloadStatus.split("=")[1] == "Download"){
-                if(!(modelDownloadLog[modelDownloadLog.length-1]["info"] == "waiting_network")){
-                  addDownloadLog("Download=downloading_model=0");
-                  await log("model", "info", "Downloading model");
+    gemini.statusStream = gemini.downloadChannel.receiveBroadcastStream().map(
+      (dynamic event) => event.toString(),
+    );
+    gemini.statusStream.listen(
+      (String downloadStatus) async {
+        switch (downloadStatus.split("=")[0]) {
+          case "Available":
+            modelInfo = await gemini.getModelInfo();
+            if (modelInfo["version"] == null) {
+              await log(
+                "model",
+                "warning",
+                "Model version was not reported, trying again",
+              );
+              await Future.delayed(Duration(seconds: 2));
+              checkEngine();
+            } else {
+              if (modelInfo["status"] == "Available") {
+                addDownloadLog("Available=Available=0");
+                await log("model", "info", "Model is ready");
+                endFirstLaunch();
+              } else {
+                if (downloadStatus.split("=")[1] == "Download") {
+                  if (!(modelDownloadLog[modelDownloadLog.length - 1]["info"] ==
+                      "waiting_network")) {
+                    addDownloadLog("Download=downloading_model=0");
+                    await log("model", "info", "Downloading model");
+                  }
+                } else {
+                  addDownloadLog(downloadStatus);
                 }
-              }else{
-                addDownloadLog(downloadStatus);
               }
             }
-          }
-          break;
-        case "Download":
-          if(modelDownloadLog.isEmpty){
+            break;
+          case "Download":
+            if (modelDownloadLog.isEmpty) {
+              addDownloadLog(downloadStatus);
+            } else {
+              if (!modelDownloadLog[modelDownloadLog.length - 1]["value"]
+                  .contains("error")) {
+                await log(
+                  "model",
+                  "error",
+                  modelDownloadLog[modelDownloadLog.length - 1]["value"],
+                );
+                if (int.parse(downloadStatus.split("=")[2]) >
+                    int.parse(
+                      modelDownloadLog[modelDownloadLog.length - 1]["value"],
+                    )) {
+                  addDownloadLog(downloadStatus);
+                }
+              }
+            }
+            break;
+          case "Error":
             addDownloadLog(downloadStatus);
-          }else{
-            if(!modelDownloadLog[modelDownloadLog.length-1]["value"].contains("error")){
-              await log("model", "error", modelDownloadLog[modelDownloadLog.length-1]["value"]);
-              if(int.parse(downloadStatus.split("=")[2]) > int.parse(modelDownloadLog[modelDownloadLog.length-1]["value"])){
-                addDownloadLog(downloadStatus);
-              }
-            }
-          }
-          break;
-        case "Error":
-          addDownloadLog(downloadStatus);
-          await log("model", "error", downloadStatus.split("=")[2]);
-          if(downloadStatus.split("=")[2].contains("1-DOWNLOAD_ERROR")){
-            checkEngine();
-          }else{
-            Fluttertoast.showToast(
+            await log("model", "error", downloadStatus.split("=")[2]);
+            if (downloadStatus.split("=")[2].contains("1-DOWNLOAD_ERROR")) {
+              checkEngine();
+            } else {
+              Fluttertoast.showToast(
                 msg: "Gemini Nano ${dict.value("unavailable")}",
                 toastLength: Toast.LENGTH_SHORT,
-                fontSize: 16.0
-            );
-          }
-          break;
-        default:
-          addDownloadLog(downloadStatus);
-      }
-    },
+                fontSize: 16.0,
+              );
+            }
+            break;
+          default:
+            addDownloadLog(downloadStatus);
+        }
+      },
       onError: (e) async {
         await log("model", "error", e);
         analyzeError("Received new status: ", e);
@@ -341,23 +388,26 @@ class AIEngine with md.ChangeNotifier {
       },
     );
   }
-  
+
   addToContext() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    contextSize = contextSize + responseText.split(' ').length + lastPrompt.split(' ').length;
+    contextSize =
+        contextSize +
+        responseText.split(' ').length +
+        lastPrompt.split(' ').length;
     context.add({
       "user": "User",
       "time": DateTime.now().millisecondsSinceEpoch.toString(),
-      "message": lastPrompt
+      "message": lastPrompt,
     });
     context.add({
       "user": "Gemini",
       "time": DateTime.now().millisecondsSinceEpoch.toString(),
-      "message": responseText
+      "message": responseText,
     });
     await prefs.setString("context", jsonEncode(context));
     await prefs.setInt("contextSize", contextSize);
-    if(currentChat == "0") {
+    if (currentChat == "0") {
       currentChat = DateTime.now().millisecondsSinceEpoch.toString();
     }
     await saveChat(context, chatID: currentChat);
@@ -367,57 +417,63 @@ class AIEngine with md.ChangeNotifier {
   }
 
   deleteChat(String chatID) async {
-    if(chats.containsKey(chatID) && !(chatID == "0")){
+    if (chats.containsKey(chatID) && !(chatID == "0")) {
       chats.remove(chatID);
       notifyListeners();
       await log("application", "info", "Deleting chat");
     }
   }
 
-  Future generateTitle (String input) async {
+  Future generateTitle(String input) async {
     ignoreContext = true;
     await log("model", "info", "Generating new chat title");
     String newTitle = "Getting description";
     await gemini.init().then((initStatus) async {
       ignoreContext = false;
       if (initStatus == null) {
-        analyzeError("Initialization", "Did not get response from AICore communication attempt");
-      }else{
+        analyzeError(
+          "Initialization",
+          "Did not get response from AICore communication attempt",
+        );
+      } else {
         if (initStatus.contains("Error")) {
           analyzeError("Initialization", initStatus);
-        }else{
-          await gemini.generateText(
-            prompt: "Task: Create a short, 3-5 word title for this conversation.\n"
-                "Rules:\n"
-                "1. DO NOT use full sentences.\n"
-                "2. DO NOT use phrases like \"The conversation is about\" or \"Summary of\".\n"
-                "3. Be extremely concise.\n"
-                "4. The title MUST be in the same language as the conversation.\n"
-                "5. The title MUST be about whole conversation if there is more than one message.\n"
-                "6. The title MUST NOT contain ANY name of any conversation party like \"Gemini\", \"Gemini's\", \"User\" or \"User's\".\n"
-                "Examples:\n"
-                "Conversation: \"Hello, how are you?\"\n"
-                "Title: Greeting\n\n"
-                "Conversation: \"Привіт, як справи?\"\n"
-                "Title: Привітання\n\n"
-                "Conversation: \"Write a python script to sort a list\"\n"
-                "Title: Python sorting script\n\n"
-                "Conversation: \"Why is the sky blue?\"\n"
-                "Title: Sky color explanation\n\n"
-                "Conversation: \"I need help with my printer\"\n"
-                "Title: Printer troubleshooting\n\n"
-                "Conversation: \"sdlkfjsdf\"\n"
-                "Title: Random characters\n\n"
-                "Conversation: \n\"$input\"\n"
-                "Title: ",
-            config: GenerationConfig(maxTokens: 20  , temperature: 0.7),
-          ).then((title){
-            newTitle = title.split('\n').first;
-            newTitle = newTitle.replaceAll(RegExp(r'[*#_`]'), '').trim();
-            if (newTitle.length > 40) {
-              newTitle = "${newTitle.substring(0, 40)}...";
-            }
-          });
+        } else {
+          await gemini
+              .generateText(
+                prompt:
+                    "Task: Create a short, 3-5 word title for this conversation.\n"
+                    "Rules:\n"
+                    "1. DO NOT use full sentences.\n"
+                    "2. DO NOT use phrases like \"The conversation is about\" or \"Summary of\".\n"
+                    "3. Be extremely concise.\n"
+                    "4. The title MUST be in the same language as the conversation.\n"
+                    "5. The title MUST be about whole conversation if there is more than one message.\n"
+                    "6. The title MUST NOT contain ANY name of any conversation party like \"Gemini\", \"Gemini's\", \"User\" or \"User's\".\n"
+                    "Examples:\n"
+                    "Conversation: \"Hello, how are you?\"\n"
+                    "Title: Greeting\n\n"
+                    "Conversation: \"Привіт, як справи?\"\n"
+                    "Title: Привітання\n\n"
+                    "Conversation: \"Write a python script to sort a list\"\n"
+                    "Title: Python sorting script\n\n"
+                    "Conversation: \"Why is the sky blue?\"\n"
+                    "Title: Sky color explanation\n\n"
+                    "Conversation: \"I need help with my printer\"\n"
+                    "Title: Printer troubleshooting\n\n"
+                    "Conversation: \"sdlkfjsdf\"\n"
+                    "Title: Random characters\n\n"
+                    "Conversation: \n\"$input\"\n"
+                    "Title: ",
+                config: GenerationConfig(maxTokens: 20, temperature: 0.7),
+              )
+              .then((title) {
+                newTitle = title.split('\n').first;
+                newTitle = newTitle.replaceAll(RegExp(r'[*#_`]'), '').trim();
+                if (newTitle.length > 40) {
+                  newTitle = "${newTitle.substring(0, 40)}...";
+                }
+              });
         }
       }
     });
@@ -432,30 +488,39 @@ class AIEngine with md.ChangeNotifier {
 
   saveChat(List conversation, {String chatID = "0"}) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    if(chatID == "0") {
+    if (chatID == "0") {
       chatID = DateTime.now().millisecondsSinceEpoch.toString();
     }
-    if(conversation.isNotEmpty){
-      if(chats.containsKey(chatID)){
-        if(!chats[chatID]!.containsKey("name")){
-          await Future.delayed(Duration(milliseconds: 500)); /// We have to wait some time because summarizing immediately will always result in overflowing the quota for some reason
-          await generateTitle(conversation[0]["message"]).then((newTitle){
-             chats[chatID]!["name"] =  newTitle;
-           });
+    if (conversation.isNotEmpty) {
+      if (chats.containsKey(chatID)) {
+        if (!chats[chatID]!.containsKey("name")) {
+          await Future.delayed(Duration(milliseconds: 500));
+
+          /// We have to wait some time because summarizing immediately will always result in overflowing the quota for some reason
+          await generateTitle(conversation[0]["message"]).then((newTitle) {
+            chats[chatID]!["name"] = newTitle;
+          });
         }
         chats[chatID]!["history"] = jsonEncode(conversation).toString();
-        chats[chatID]!["updated"] =  DateTime.now().millisecondsSinceEpoch.toString();
-        chats[chatID]!["tokens"] =  contextSize.toString();
-        await log("application", "info", "Saving chat. Length: ${contextSize.toString()}");
-      }else{
+        chats[chatID]!["updated"] = DateTime.now().millisecondsSinceEpoch
+            .toString();
+        chats[chatID]!["tokens"] = contextSize.toString();
+        await log(
+          "application",
+          "info",
+          "Saving chat. Length: ${contextSize.toString()}",
+        );
+      } else {
         isLoading = true;
-        await Future.delayed(Duration(milliseconds: 500)); /// We have to wait some time because summarizing immediately will always result in overflowing the quota for some reason
+        await Future.delayed(Duration(milliseconds: 500));
+
+        /// We have to wait some time because summarizing immediately will always result in overflowing the quota for some reason
         String newTitle = "Still loading";
         String composeConversation = "";
-        for (var line in conversation){
+        for (var line in conversation) {
           composeConversation = "$composeConversation\n - ${line["message"]}";
         }
-        await generateTitle(composeConversation).then((result){
+        await generateTitle(composeConversation).then((result) {
           newTitle = result;
         });
 
@@ -466,7 +531,7 @@ class AIEngine with md.ChangeNotifier {
           "pinned": false,
           "history": jsonEncode(conversation).toString(),
           "created": DateTime.now().millisecondsSinceEpoch.toString(),
-          "updated": DateTime.now().millisecondsSinceEpoch.toString()
+          "updated": DateTime.now().millisecondsSinceEpoch.toString(),
         };
         await log("application", "info", "Saving new chat");
       }
@@ -494,32 +559,43 @@ class AIEngine with md.ChangeNotifier {
     isError = false;
     notifyListeners();
     try {
-      await promptEngine.generate(
-          instructions.text,
-          context,
-          modelInfo,
-          currentLocale: dict.value("current_language"),
-          addTime: addCurrentTimeToRequests,
-          shareLocale: shareLocale,
-          ignoreInstructions: ignoreInstructions,
-          ignoreContext: ignoreContext
-      ).then((instruction) async {
-        await gemini.init(instructions: instruction).then((initStatus) async {
-          if (initStatus == null) {
-            await log("model", "error", "Did not get response from AICore communication attempt");
-            analyzeError("Initialization", "Did not get response from AICore communication attempt");
-          }else{
-            if (initStatus.contains("Error")) {
-              await log("model", "error", initStatus);
-              analyzeError("Initialization", initStatus);
-            }else{
-              await log("model", "info", "Model initialized successfully");
-              isAvailable = true;
-              isInitialized = true;
-            }
-          }
-        });
-      });
+      await promptEngine
+          .generate(
+            instructions.text,
+            context,
+            modelInfo,
+            currentLocale: dict.value("current_language"),
+            addTime: addCurrentTimeToRequests,
+            shareLocale: shareLocale,
+            ignoreInstructions: ignoreInstructions,
+            ignoreContext: ignoreContext,
+          )
+          .then((instruction) async {
+            await gemini.init(instructions: instruction).then((
+              initStatus,
+            ) async {
+              if (initStatus == null) {
+                await log(
+                  "model",
+                  "error",
+                  "Did not get response from AICore communication attempt",
+                );
+                analyzeError(
+                  "Initialization",
+                  "Did not get response from AICore communication attempt",
+                );
+              } else {
+                if (initStatus.contains("Error")) {
+                  await log("model", "error", initStatus);
+                  analyzeError("Initialization", initStatus);
+                } else {
+                  await log("model", "info", "Model initialized successfully");
+                  isAvailable = true;
+                  isInitialized = true;
+                }
+              }
+            });
+          });
     } catch (e) {
       await log("model", "error", e.toString());
       analyzeError("Initialization", e);
@@ -528,7 +604,6 @@ class AIEngine with md.ChangeNotifier {
       notifyListeners();
     }
   }
-
 
   /// Sets the error state
   void analyzeError(String action, dynamic e) {
@@ -549,7 +624,6 @@ class AIEngine with md.ChangeNotifier {
     scrollChatlog(Duration(milliseconds: 250));
     await log("model", "error", "Cancelling generation");
   }
-
 
   Future<void> generateStream() async {
     if (prompt.text.isEmpty) {
@@ -582,9 +656,8 @@ class AIEngine with md.ChangeNotifier {
     );
     lastPrompt = prompt.text.trim();
 
-
     _aiSubscription = stream.listen(
-          (AiEvent event) async {
+      (AiEvent event) async {
         switch (event.status) {
           case AiEventStatus.loading:
             isLoading = true;
@@ -597,23 +670,41 @@ class AIEngine with md.ChangeNotifier {
           case AiEventStatus.streaming:
             isLoading = true;
             String? finishReason = event.response?.finishReason;
-            if(!(event.response?.finishReason=="null")) {
-              switch(finishReason??"null"){
+            if (!(event.response?.finishReason == "null")) {
+              switch (finishReason ?? "null") {
                 case "0":
-                  if (kDebugMode) {print("Generation stopped (MAX_TOKENS): The maximum number of output tokens as specified in the request was reached.");}
+                  if (kDebugMode) {
+                    print(
+                      "Generation stopped (MAX_TOKENS): The maximum number of output tokens as specified in the request was reached.",
+                    );
+                  }
                   await log("model", "info", "Generation stopped (MAX_TOKENS)");
                   break;
                 case "1":
-                  if (kDebugMode) {print("Generation stopped (OTHER): Generic stop reason.");}
+                  if (kDebugMode) {
+                    print("Generation stopped (OTHER): Generic stop reason.");
+                  }
                   await log("model", "info", "Generation stopped (OTHER)");
                   break;
                 case "-100":
-                  if (kDebugMode) {print("Generation stopped (STOP): Natural stop point of the model.");}
+                  if (kDebugMode) {
+                    print(
+                      "Generation stopped (STOP): Natural stop point of the model.",
+                    );
+                  }
                   await log("model", "info", "Generation stopped (STOP)");
                   break;
                 default:
-                  if (kDebugMode) {print("Generation stopped (Code ${event.response?.finishReason}): Reason for stop was not specified");}
-                  await log("model", "info", "Generation stopped (Code ${event.response?.finishReason})");
+                  if (kDebugMode) {
+                    print(
+                      "Generation stopped (Code ${event.response?.finishReason}): Reason for stop was not specified",
+                    );
+                  }
+                  await log(
+                    "model",
+                    "info",
+                    "Generation stopped (Code ${event.response?.finishReason})",
+                  );
                   break;
               }
             }
@@ -622,11 +713,11 @@ class AIEngine with md.ChangeNotifier {
               response = event.response!;
               responseText = event.response!.text;
             }
-            try{
+            try {
               scrollChatlog(Duration(milliseconds: 250));
               await Future.delayed(Duration(milliseconds: 500));
               scrollChatlog(Duration(milliseconds: 250));
-            }catch(e){
+            } catch (e) {
               if (kDebugMode) {
                 print("Can't scroll: $e");
               }
@@ -635,35 +726,55 @@ class AIEngine with md.ChangeNotifier {
             break;
 
           case AiEventStatus.done:
-            if(responseText == ""){
-              if(errorRetry){
-                if(event.response?.text == null){
+            if (responseText == "") {
+              if (errorRetry) {
+                if (event.response?.text == null) {
                   isLoading = false;
                   Fluttertoast.showToast(
-                      msg: "Unable to generate response.",
-                      toastLength: Toast.LENGTH_SHORT,
-                      fontSize: 16.0
+                    msg: "Unable to generate response.",
+                    toastLength: Toast.LENGTH_SHORT,
+                    fontSize: 16.0,
                   );
-                }else{
+                } else {
                   await Future.delayed(Duration(milliseconds: 500));
                   generateStream();
                 }
-              }else{
+              } else {
                 isLoading = false;
                 isError = true;
                 status = "Error";
                 responseText = event.error ?? "Unknown stream error";
                 await log("model", "error", responseText);
               }
-            }else{
+            } else {
               isLoading = false;
               status = "Done";
               addToContext();
               prompt.clear();
-              await log("model", "info", dict.value("generated_hint").replaceAll("%seconds%", ((response.generationTimeMs??10)/1000).toStringAsFixed(2)).replaceAll("%tokens%", response.text.split(" ").length.toString()).replaceAll("%tokenspersec%", (response.tokenCount!.toInt()/((response.generationTimeMs??10)/1000)).toStringAsFixed(2)));
-              try{
+              await log(
+                "model",
+                "info",
+                dict
+                    .value("generated_hint")
+                    .replaceAll(
+                      "%seconds%",
+                      ((response.generationTimeMs ?? 10) / 1000)
+                          .toStringAsFixed(2),
+                    )
+                    .replaceAll(
+                      "%tokens%",
+                      response.text.split(" ").length.toString(),
+                    )
+                    .replaceAll(
+                      "%tokenspersec%",
+                      (response.tokenCount!.toInt() /
+                              ((response.generationTimeMs ?? 10) / 1000))
+                          .toStringAsFixed(2),
+                    ),
+              );
+              try {
                 scrollChatlog(Duration(milliseconds: 250));
-              }catch(e){
+              } catch (e) {
                 if (kDebugMode) {
                   print("Can't scroll: $e");
                 }
@@ -672,10 +783,10 @@ class AIEngine with md.ChangeNotifier {
             break;
 
           case AiEventStatus.error:
-            if(errorRetry){
+            if (errorRetry) {
               await Future.delayed(Duration(milliseconds: 500));
               generateStream();
-            }else{
+            } else {
               isLoading = false;
               isError = true;
               status = "Error";
@@ -687,10 +798,10 @@ class AIEngine with md.ChangeNotifier {
         genericRefresh();
       },
       onError: (e) async {
-        if(errorRetry){
+        if (errorRetry) {
           await Future.delayed(Duration(milliseconds: 500));
           generateStream();
-        }else {
+        } else {
           await log("model", "error", e);
           analyzeError("Streaming", e);
         }
