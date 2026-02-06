@@ -1,3 +1,9 @@
+## Update 1.1.3 `OBT`
+#### Fixes
+ - Fixed analytics preventing app from starting in offline mode
+#### Contributions
+ - [@abc0922001](https://github.com/abc0922001) added Chinese translation
+
 ## Update 1.1.2 `OBT`
 #### Changes
  - Added optional analytics for debugging and crash reporting
